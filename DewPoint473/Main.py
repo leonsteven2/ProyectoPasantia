@@ -2,7 +2,7 @@ import serial
 
 # Configura los parámetros de comunicación
 ser = serial.Serial(
-    port='COM3',  # Reemplaza esto con el puerto COM correcto en Windows
+    port='COM4',  # Reemplaza esto con el puerto COM correcto en Windows
     baudrate=9600,      # Velocidad de baudios
     bytesize=serial.EIGHTBITS, # 8 bits de datos
     parity=serial.PARITY_NONE, # Sin paridad

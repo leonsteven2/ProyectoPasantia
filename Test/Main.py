@@ -1,7 +1,7 @@
 import serial
 
 # Abre el puerto serial
-arduino = serial.Serial('COM8', 9600)
+arduino = serial.Serial('COM5', 9600)
 
 # Mensaje
 mensaje = "Hola, Arduino!"

@@ -4,7 +4,7 @@ from flet import AlertDialog,ProgressBar, CircleAvatar, Dropdown, dropdown, Icon
     ElevatedButton, DataTable, DataColumn, DataRow, DataCell, SafeArea, Checkbox, Text, Column, TextField, Row, ImageFit, TextButton
 
 from time import sleep
-
+import serial
 
 def CajaTextoConIcono(label, src_image, password, icon):
     icon_caja = Icon(
@@ -271,21 +271,29 @@ class DeviceComunication(UserControl):
         self.default_baud = default_baud
         self.page = page
         self.data = data
+
+        # Creamos la barra de progreso para la comunicación serial
         self.progress_bar = ProgressBar(
                                 value=0,
                                 color="amber",
                                 bgcolor="#eeeeee"
                             )
+
+        # Creamos la etiqueta de ayuda al usuario para la comunicación serial
         self.txt_user_help = Text(
             value="Click para empezar comunicación serial",
+            color="yellow",
             style=TextThemeStyle.LABEL_LARGE
         )
-        self.row_baud_port = Row(
-                    controls=[
-                        Dropdown(
+
+        # Creamos la fila que contiene el Dropdown de Baud y PortCOM
+        self.drop_PORT = Dropdown(
                             expand=1,
                             dense=True,
                             label="PORT",
+                            hint_text="Puerto COM",
+                            color="blue",
+                            text_style=TextStyle(weight=FontWeight.BOLD),
                             options=[
                                 dropdown.Option("COM1"),
                                 dropdown.Option("COM2"),
@@ -298,13 +306,14 @@ class DeviceComunication(UserControl):
                                 dropdown.Option("COM9"),
                                 dropdown.Option("COM10"),
                             ],
-                            autofocus=True
-                        ),
-                        Dropdown(
+                        )
+        self.drop_BAUD = Dropdown(
                             expand=1,
                             value=self.default_baud,
                             dense=True,
                             label="Baud",
+                            color="blue",
+                            text_style=TextStyle(weight=FontWeight.BOLD),
                             options=[
                                 dropdown.Option("1200"),
                                 dropdown.Option("2400"),
@@ -315,16 +324,26 @@ class DeviceComunication(UserControl):
                                 dropdown.Option("57600"),
                                 dropdown.Option("115200"),
                             ]
-                        ),
-                        IconButton(icon=icons.SEND_SHARP, on_click=self.establecer_conexion_serial)
+                        )
+        self.row_baud_port = Row(
+                    controls=[
+                        self.drop_PORT,
+                        self.drop_BAUD,
+                        IconButton(icon=icons.SEND_SHARP, on_click=self.establecer_conexion_serial, icon_color="yellow")
                     ]
                 )
+
+        # Creamos el título de la Caja de Setpoint
         self.lbl_setpoint = Text("Setpoint!",
                              style=TextThemeStyle.TITLE_LARGE,
                              weight=FontWeight.BOLD
                              )
+
         # Creamos las tablas para los diferentes equipos
         if self.data == "Thunder":
+            self.txt_RH_Pc_setpoint_value = Text("0")
+            self.txt_RH_Pc_actual_value = Text("0")
+
             self.data_table = DataTable(
                 expand=1,
                 columns=[
@@ -338,8 +357,8 @@ class DeviceComunication(UserControl):
                         cells=[
                             DataCell(Text("%RH")),
                             DataCell(Text("%Pc")),
-                            DataCell(Text("0")),
-                            DataCell(Text("0")),
+                            DataCell(self.txt_RH_Pc_setpoint_value),
+                            DataCell(self.txt_RH_Pc_actual_value)
                         ]
                     ),
                     DataRow(
@@ -459,7 +478,7 @@ class DeviceComunication(UserControl):
                 column_spacing=30,
             )
 
-
+        # Creamos la columna principal que contiene el título, configuracion serial y tablas
         self.col_main = Column(
             spacing=15,
             #alignment=flet.MainAxisAlignment.CENTER,
@@ -486,12 +505,11 @@ class DeviceComunication(UserControl):
             ]
         )
 
-    def build(self):
-
-        row_main = Row(
+        # Creamos la fila que contiene toda la MainInterface
+        self.row_main = Row(
             controls=[
                 Container(
-                    #bgcolor=colors.BLUE_GREY_900,
+                    # bgcolor=colors.BLUE_GREY_900,
                     bgcolor=colors.GREY_900,
                     padding=padding.all(10),
                     expand=1,
@@ -500,42 +518,73 @@ class DeviceComunication(UserControl):
                 )
             ]
         )
-        return row_main
+
+    def build(self):
+        pass
+        return self.row_main
 
     def establecer_conexion_serial(self, event):
-        self.progress_bar.color = "amber"
-        self.progress_bar.value = None
-        self.txt_user_help.value = "Conectando..."
-        self.txt_user_help.color = None
+        conexion_satisfactoria = False
+        # Cambiamos el color
+        if self.drop_PORT.value != None:
+            self.progress_bar.color = "amber"
+            self.progress_bar.value = None
+            self.txt_user_help.value = f"Conectando por {self.drop_PORT.value} ..."
+            self.txt_user_help.color = None
+            self.page.update(self)
+            sleep(3)
+            try:
+                self.comunicacion_serial = serial.Serial(str(self.drop_PORT.value), int(self.drop_BAUD.value))
+                conexion_satisfactoria = True
+            except Exception as e:
+                print(e)
+                error = str(e).split("(")
+                self.progress_bar.value = 1
+                self.progress_bar.color = "red"
+                self.txt_user_help.value = error[0]
+                self.txt_user_help.color = "red"
+        else:
+            self.progress_bar.value = 1
+            self.progress_bar.color = "red"
+            self.txt_user_help.value = "Seleccione el puerto COM"
+            self.txt_user_help.color = "red"
+            self.drop_PORT.autofocus = True
+
+        if conexion_satisfactoria:
+            self.row_baud_port.visible = False
+            self.progress_bar.value = 1
+            self.progress_bar.color = "green"
+            self.txt_user_help.value = "Conectado"
+            self.txt_user_help.color = "green"
+            self.page.update(self)
+
+            if self.data == "Thunder":
+                self.adquisicion_datos_thunder()
+
         self.page.update(self)
-        sleep(3)
-        self.row_baud_port.visible = False
-        self.progress_bar.value = 1
-        self.progress_bar.color = "green"
-        self.txt_user_help.value = "Conectado"
-        self.txt_user_help.color = "green"
 
-        # self.progress_bar.value = 1
-        # self.progress_bar.color = "red"
-        # self.txt_user_help.value = "PORT COM ocupado"
-        # self.txt_user_help.color = "red"
+    def adquisicion_datos_thunder(self):
+        while True:
+            mensaje_serial = self.comunicacion_serial.readline().decode().strip()
+            self.txt_RH_Pc_actual_value.value = str(mensaje_serial)
+            self.page.update(self)
+            print(mensaje_serial)
 
-        self.page.update(self)
-
-
-class MainInterface(UserControl):
+class Dashboard(UserControl):
     def __init__(self, page):
         super().__init__()
         self.page = page
 
-    def build(self):
         # Creamos las cajas de configuración serial para cada dispositivo
-        caja_configuracion_serial_thunder = DeviceComunication(titulo="Thunder Scientific", default_baud="2400", page=self.page, data="Thunder")
-        caja_configuracion_serial_dew473 = DeviceComunication(titulo="Dew Point Mirror - 473", default_baud="9600", page=self.page, data="473")
-        caja_configuracion_serial_fluke = DeviceComunication(titulo="Fluke - DewK ", default_baud="9600", page=self.page, data="Fluke")
+        caja_configuracion_serial_thunder = DeviceComunication(titulo="Thunder Scientific", default_baud="2400",
+                                                               page=self.page, data="Thunder")
+        caja_configuracion_serial_dew473 = DeviceComunication(titulo="Dew Point Mirror - 473", default_baud="9600",
+                                                              page=self.page, data="473")
+        caja_configuracion_serial_fluke = DeviceComunication(titulo="Fluke - DewK ", default_baud="9600",
+                                                             page=self.page, data="Fluke")
 
         self.container_all_serial_configuration = Container(
-            bgcolor=colors.GREY_900,
+            bgcolor="#2D2F31",
             padding=padding.all(5),
             expand=1,
             content=Column(
@@ -561,23 +610,23 @@ class MainInterface(UserControl):
                         extended=True,
                         destinations=[
                             NavigationRailDestination(
-                                #padding=padding.only(left=5),
+                                # padding=padding.only(left=5),
                                 icon=icons.HOME,
-                                #icon=Icon(icons.HOME),
+                                # icon=Icon(icons.HOME),
                                 label_content=Text("Home", style=TextThemeStyle.BODY_LARGE, weight=FontWeight.BOLD),
                             ),
                             NavigationRailDestination(
-                                #padding=padding.only(left=5),
+                                # padding=padding.only(left=5),
                                 icon=icons.DASHBOARD,
                                 label_content=Text("Panel", style=TextThemeStyle.BODY_LARGE, weight=FontWeight.BOLD),
                             ),
                             NavigationRailDestination(
-                                #padding=padding.only(left=5),
+                                # padding=padding.only(left=5),
                                 icon=icons.PERSON,
                                 label_content=Text("Admin", style=TextThemeStyle.BODY_LARGE, weight=FontWeight.BOLD),
                             ),
                             NavigationRailDestination(
-                                #padding=padding.only(left=5),
+                                # padding=padding.only(left=5),
                                 icon=icons.SETTINGS,
                                 label_content=Text("Settings", style=TextThemeStyle.BODY_LARGE, weight=FontWeight.BOLD),
                             ),
@@ -587,15 +636,16 @@ class MainInterface(UserControl):
                     ),
                     Row(
                         controls=[
-                           TextButton(
-                               content=Row(
-                                   controls=[
-                                       Icon(icons.LOGOUT_OUTLINED, color=colors.WHITE),
-                                       Text("Logout",weight=FontWeight.BOLD, style=TextThemeStyle.BODY_LARGE, color=colors.WHITE)
-                                   ]
-                               ),
-                               on_click=self.return_to_login_page,
-                           )
+                            TextButton(
+                                content=Row(
+                                    controls=[
+                                        Icon(icons.LOGOUT_OUTLINED, color=colors.WHITE),
+                                        Text("Logout", weight=FontWeight.BOLD, style=TextThemeStyle.BODY_LARGE,
+                                             color=colors.WHITE)
+                                    ]
+                                ),
+                                on_click=self.return_to_login_page,
+                            )
                         ],
                         alignment=flet.MainAxisAlignment.CENTER
                     ),
@@ -605,7 +655,7 @@ class MainInterface(UserControl):
             )
         )
         self.container_dashboard = Container(
-            expand=6,
+            expand=7,
             content=Column(
                 spacing=5,
                 controls=[
@@ -620,17 +670,14 @@ class MainInterface(UserControl):
                         expand=3,
                         controls=[
                             Container(
-                                bgcolor="pink",
                                 expand=1,
                                 content=caja_configuracion_serial_thunder
                             ),
                             Container(
-                                bgcolor="pink",
                                 expand=1,
                                 content=caja_configuracion_serial_dew473
                             ),
                             Container(
-                                bgcolor="pink",
                                 expand=1,
                                 content=caja_configuracion_serial_fluke
                             ),
@@ -650,10 +697,11 @@ class MainInterface(UserControl):
             )
         )
 
+    def build(self):
+        pass
         return self.container_main
 
     def return_to_login_page(self, event):
-        print("HOLA")
         self.page.go("/")
 
 class CustomersPage(UserControl):
@@ -679,7 +727,6 @@ class CustomersPage(UserControl):
         print("Presionado")
         self.row_main.controls.append(Text("Aquí estoy"))
         self.page.update(self)
-
 
 class HomePage(UserControl):
     def __init__(self, page, texto):
@@ -751,7 +798,7 @@ if __name__ == "__main__":
         #page.theme = Theme(font_family="Oswald Bold")
         page.window_maximized = True
 
-        main_interface = MainInterface(page)
+        main_interface = Dashboard(page)
         login_interface = LoginInterface(page)
         page.on_route_change = route_change
         page.go(page.route)

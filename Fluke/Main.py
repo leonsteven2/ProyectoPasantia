@@ -1,7 +1,7 @@
 import serial
 import time
 # Abre el puerto serial
-fluke = serial.Serial('COM5', 9600)
+fluke = serial.Serial('COM2', 9600)
 
 # Mensaje si es que se necesita
 mensaje = "READ? 1\r"

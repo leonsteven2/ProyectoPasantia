@@ -2,7 +2,7 @@ import serial
 import time
 # Abre el puerto serial
 thunder = serial.Serial(
-    port='COM5',  # Reemplaza 'COM1' con el puerto COM correcto en Windows
+    port='COM1',  # Reemplaza 'COM1' con el puerto COM correcto en Windows
     baudrate=2400,      # Velocidad de baudios
     bytesize=serial.EIGHTBITS, # 8 bits de datos
     parity=serial.PARITY_NONE, # Sin paridad

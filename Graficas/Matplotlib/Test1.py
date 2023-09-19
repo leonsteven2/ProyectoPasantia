@@ -26,18 +26,18 @@ def main(page: ft.Page):
             datos_x.pop(0)
             datos_y.pop(0)
         datos_x.append(contador)
-        datos_y.append(random.uniform(5, 15))
+        datos_y.append(random.uniform(1, 100))
         ax.clear()
         ax.plot(datos_x,datos_y)
-        ax.scatter(datos_x, datos_y, color='blue', marker='o', facecolors='blue', s=100)
+        #ax.scatter(datos_x, datos_y, color='blue', marker='o', facecolors='blue', s=100)
 
         if len(datos_x1) >= 15:
             datos_x1.pop(0)
             datos_y1.pop(0)
         datos_x1.append(contador)
-        datos_y1.append(random.uniform(5, 15))
+        datos_y1.append(random.uniform(1, 100))
         ax.plot(datos_x1, datos_y1, color='red')
-        ax.scatter(datos_x1, datos_y1, color='red', marker='o', facecolors='red', s=100)
+        #ax.scatter(datos_x1, datos_y1, color='red', marker='o', facecolors='red', s=100)
 
         ax.grid()
         page.update()

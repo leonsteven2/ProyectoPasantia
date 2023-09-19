@@ -2,9 +2,12 @@ import flet
 from flet import AlertDialog,ProgressBar, CircleAvatar, Dropdown, dropdown, Icon, Page, NavigationRail, FloatingActionButton, NavigationRailDestination, padding, \
     IconButton, TextStyle, Slider, TextThemeStyle, FontWeight, TextAlign, colors, TextCapitalization, Theme, UserControl, Container, icons, \
     ElevatedButton, DataTable, DataColumn, DataRow, DataCell, SafeArea, Checkbox, Text, Column, TextField, Row, ImageFit, TextButton
-
 from time import sleep
 import serial
+
+import matplotlib.pyplot as plt
+from flet.matplotlib_chart import MatplotlibChart
+
 
 def CajaTextoConIcono(label, src_image, password, icon):
     icon_caja = Icon(
@@ -265,12 +268,13 @@ class SetpointBox(UserControl):
 
 
 class DeviceComunication(UserControl):
-    def __init__(self, titulo, default_baud, page, data):
+    def __init__(self, titulo, default_baud, page, data, grafica=None):
         super().__init__()
         self.titulo = titulo
         self.default_baud = default_baud
         self.page = page
         self.data = data
+        self.grafica = grafica
 
         # Creamos la barra de progreso para la comunicación serial
         self.progress_bar = ProgressBar(
@@ -481,6 +485,7 @@ class DeviceComunication(UserControl):
         # Creamos la columna principal que contiene el título, configuracion serial y tablas
         self.col_main = Column(
             spacing=15,
+            scroll=flet.ScrollMode.HIDDEN,
             #alignment=flet.MainAxisAlignment.CENTER,
             controls=[
                 Row(controls=[
@@ -567,20 +572,97 @@ class DeviceComunication(UserControl):
         while True:
             mensaje_serial = self.comunicacion_serial.readline().decode().strip()
             self.txt_RH_Pc_actual_value.value = str(mensaje_serial)
+            self.grafica.graficar_en_tiempo_real(event=None,value1=self.txt_RH_Pc_actual_value.value,value2=self.txt_RH_Pc_actual_value.value)
             self.page.update(self)
-            print(mensaje_serial)
+            print(self.txt_RH_Pc_actual_value.value)
+
+
+class GraficaIndependiente(UserControl):
+    def __init__(self, page):
+        super().__init__()
+        self.page = page
+        fig, self.ax = plt.subplots()
+        self.datos_x = [0]
+        self.datos_y = [0]
+        self.contador = 0
+        self.ax.plot(
+            self.datos_y,
+            linestyle="--",
+            color="green",
+            linewidth=5,
+            marker="o",
+            markersize=20,
+            label="Actual",
+        )
+        #plt.legend(fontsize=30)
+        # ax.set_ylabel("Valor", fontsize=30, color="red")
+        self.ax.tick_params(axis='both', labelsize=30, labelcolor="white")
+        self.ax.grid()
+        fig.set_figwidth(20)
+        # plt.xlabel("# Medición")
+        # plt.ylabel("Valor")
+        #self.plt_chart = MatplotlibChart(fig, transparent=True, expand=True)
+        self.plt_chart = MatplotlibChart(fig, transparent=True, isolated=True, expand=True)
+
+
+    def build(self):
+        self.row_chart = Row(
+            expand=1,
+            controls=[
+                self.plt_chart,
+                IconButton(icon=icons.START)
+            ]
+        )
+        return self.row_chart
+
+    def graficar_en_tiempo_real(self, event, value1, value2):
+        self.contador = self.contador + 1
+        if len(self.datos_x) >= 15:
+            self.datos_x.pop(0)
+            self.datos_y.pop(0)
+        self.datos_x.append(self.contador)
+        self.datos_y.append(int(value1))
+        print(self.datos_x)
+        print(self.datos_y)
+        self.ax.clear()
+        self.ax.plot(
+            self.datos_x,
+            self.datos_y,
+            linestyle="--",
+            color="green",
+            linewidth=5,
+            marker="o",
+            markersize=20,
+            label="Actual",
+        )
+
+        self.ax.plot(
+            [self.datos_x[0],self.datos_x[-1]],
+            [50,50],
+            linestyle="--",
+            color="red",
+            linewidth=5,
+            label="Actual",
+        )
+
+        self.ax.tick_params(axis='both', labelsize=30, labelcolor="white")
+        self.ax.grid()
+        self.plt_chart.update()
+
 
 class Dashboard(UserControl):
     def __init__(self, page):
         super().__init__()
         self.page = page
+        # Creamos la gráfica
+        self.row_chart_setpoint_and_actual = GraficaIndependiente(page=self.page)
 
         # Creamos las cajas de configuración serial para cada dispositivo
-        caja_configuracion_serial_thunder = DeviceComunication(titulo="Thunder Scientific", default_baud="2400",
-                                                               page=self.page, data="Thunder")
-        caja_configuracion_serial_dew473 = DeviceComunication(titulo="Dew Point Mirror - 473", default_baud="9600",
+        self.caja_configuracion_serial_thunder = DeviceComunication(titulo="Thunder Scientific", default_baud="2400",
+                                                               page=self.page, data="Thunder", grafica=self.row_chart_setpoint_and_actual)
+        self.caja_configuracion_serial_dew473 = DeviceComunication(titulo="Dew Point Mirror - 473", default_baud="9600",
                                                               page=self.page, data="473")
-        caja_configuracion_serial_fluke = DeviceComunication(titulo="Fluke - DewK ", default_baud="9600",
+        self.caja_configuracion_serial_fluke = DeviceComunication(titulo="Fluke - DewK ", default_baud="9600",
                                                              page=self.page, data="Fluke")
 
         self.container_all_serial_configuration = Container(
@@ -654,6 +736,7 @@ class Dashboard(UserControl):
                 ],
             )
         )
+
         self.container_dashboard = Container(
             expand=7,
             content=Column(
@@ -671,16 +754,37 @@ class Dashboard(UserControl):
                         controls=[
                             Container(
                                 expand=1,
-                                content=caja_configuracion_serial_thunder
+                                content=self.caja_configuracion_serial_thunder
                             ),
-                            Container(
-                                expand=1,
-                                content=caja_configuracion_serial_dew473
-                            ),
-                            Container(
-                                expand=1,
-                                content=caja_configuracion_serial_fluke
-                            ),
+                            Column(
+                                expand=2,
+                                spacing=5,
+                                controls=[
+                                    Row(
+                                        spacing=5,
+                                        expand=8,
+                                        controls=[
+                                            Container(
+                                                expand=1,
+                                                content=self.caja_configuracion_serial_dew473,
+                                                #margin=flet.margin.only(bottom=50)
+                                                #padding=padding.only(bottom=10)
+                                            ),
+                                            Container(
+                                                expand=1,
+                                                content=self.caja_configuracion_serial_fluke
+                                            ),
+                                        ]
+                                    ),
+                                    Container(
+                                        expand=4,
+                                        bgcolor=colors.BLACK87,
+                                        #content=MatplotlibChart(fig, expand=True, transparent=True),
+                                        content=self.row_chart_setpoint_and_actual
+                                    )
+                                ]
+                            )
+
                         ],
 
                     )
@@ -703,6 +807,7 @@ class Dashboard(UserControl):
 
     def return_to_login_page(self, event):
         self.page.go("/")
+
 
 class CustomersPage(UserControl):
     def __init__(self, page):
@@ -728,6 +833,7 @@ class CustomersPage(UserControl):
         self.row_main.controls.append(Text("Aquí estoy"))
         self.page.update(self)
 
+
 class HomePage(UserControl):
     def __init__(self, page, texto):
         super().__init__()
@@ -752,7 +858,6 @@ class HomePage(UserControl):
         print("Presionado")
         self.row_main.controls.append(Text("Aquí estoy"))
         self.page.update(self)
-
 
 if __name__ == "__main__":
     def main(page: Page):
@@ -801,7 +906,7 @@ if __name__ == "__main__":
         main_interface = Dashboard(page)
         login_interface = LoginInterface(page)
         page.on_route_change = route_change
-        page.go(page.route)
-        #page.go("/sensores")
+        #page.go(page.route)
+        page.go("/sensores")
 
     flet.app(target=main)  # view=flet.WEB_BROWSER

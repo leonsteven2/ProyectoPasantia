@@ -1,11 +1,12 @@
 import time
 
 import flet
-from flet import AlertDialog, FilePicker, FilePickerResultEvent, ProgressBar, CircleAvatar, Dropdown, dropdown, Icon, Page, NavigationRail, FloatingActionButton, NavigationRailDestination, padding, \
-    IconButton, TextStyle, Slider, TextThemeStyle, FontWeight, TextAlign, colors, TextCapitalization, Theme, UserControl, Container, icons, \
+from flet import AlertDialog, FilePicker, FilePickerResultEvent, ProgressBar, CircleAvatar, Dropdown, dropdown, Icon, Page, NavigationRail, NavigationRailDestination, padding, \
+    IconButton, TextStyle, Slider, TextThemeStyle, FontWeight, TextAlign, colors, TextCapitalization, UserControl, Container, icons, \
     ElevatedButton, DataTable, DataColumn, DataRow, DataCell, SafeArea, Checkbox, Text, Column, TextField, Row, ImageFit, TextButton
 from time import sleep
 import serial
+import pandas as pd
 
 import matplotlib.pyplot as plt
 from flet.matplotlib_chart import MatplotlibChart
@@ -279,28 +280,51 @@ class DeviceComunication(UserControl):
 
         # Creamos la barra de progreso para la comunicación serial
         self.progress_bar = ProgressBar(
-            expand=1,
             value=0,
             color="amber",
             bgcolor="#eeeeee"
         )
+
         # Creamos los botones para guardar y exportar datos
+        self.bool_registrar_datos = False
         self.btn_iniciar_registro_datos = ElevatedButton(
-            "Iniciar registro",
-            expand=1
+            "Registrar",
+            expand=1,
+            on_click=lambda _: self.registrar_datos(),
         )
         # hide all dialogs in overlay
         save_file_dialog = FilePicker(on_result=self.save_file_result)
         self.page.overlay.extend([save_file_dialog])
-
-        self.btn_guardar_datos_excel =  ElevatedButton(
-            "Save file",
+        self.btn_guardar_datos =  ElevatedButton(
+            ".csv",
             icon=icons.SAVE,
-            on_click=lambda _: save_file_dialog.save_file(file_name="HOLA")
+            disabled=True,
+            expand=1,
+            on_click=lambda _: save_file_dialog.save_file(file_name="datos.csv", allowed_extensions=["csv"])
         )
+        # Creamos el boton para resetear los datos del dataframe
+        self.btn_reset_dataframe = ElevatedButton(
+            "Reset",
+            disabled=True,
+            on_click=self.resetear_dataframe
+        )
+        # Creamos el botón para salir de la conexión
+        self.btn_exit = IconButton(
+            bgcolor=colors.RED_400,
+            icon=icons.EXIT_TO_APP_ROUNDED,
+            icon_color="white",
+            on_click=lambda _: self.conexion_serial_fallida("Proceso finalizado")
+        )
+
         # Creamos la fila que contiene al progress bar y los botones de guardado de datos
-        self.row_progress_bar_and_buttons = Row(
-            controls=[self.progress_bar, self.btn_guardar_datos_excel]
+        self.row_data_buttons = Row(
+            visible=False,
+            controls=[
+                self.btn_iniciar_registro_datos,
+                self.btn_guardar_datos,
+                self.btn_reset_dataframe,
+                self.btn_exit
+            ]
         )
 
         # Creamos la etiqueta de ayuda al usuario para la comunicación serial
@@ -316,7 +340,7 @@ class DeviceComunication(UserControl):
                             dense=True,
                             label="PORT",
                             hint_text="Puerto COM",
-                            color="blue",
+                            color="white",
                             text_style=TextStyle(weight=FontWeight.BOLD),
                             options=[
                                 dropdown.Option("COM1"),
@@ -336,7 +360,7 @@ class DeviceComunication(UserControl):
                             value=self.default_baud,
                             dense=True,
                             label="Baud",
-                            color="blue",
+                            color="white",
                             text_style=TextStyle(weight=FontWeight.BOLD),
                             options=[
                                 dropdown.Option("1200"),
@@ -383,11 +407,10 @@ class DeviceComunication(UserControl):
             self.txt_chamber_temp_setpoint = Text("-")
             self.txt_chamber_temp_actual = Text("0")
 
-
-
-
             self.txt_flow_rate_setpoint = Text("0")
             self.txt_flow_rate_actual = Text("0")
+
+            self.df_datos_thunder = pd.DataFrame(columns=['RH %Pc', 'RH%PcTc'])
 
             self.data_table = DataTable(
                 expand=1,
@@ -463,6 +486,8 @@ class DeviceComunication(UserControl):
             self.txt_DewPoint_473_actual = Text("0")
             self.txt_ExternalTemp_473_actual = Text("0")
 
+            self.df_datos_473 = pd.DataFrame(columns=['RH', 'DewPoint', 'Ext. Temp'])
+
             self.data_table = DataTable(
                 expand=1,
                 columns=[
@@ -503,6 +528,8 @@ class DeviceComunication(UserControl):
             self.txt_RH1_actual = Text("0")
             self.txt_RH2_actual = Text("0")
 
+            self.df_datos_fluke = pd.DataFrame(columns=['Temp1', 'RH1', 'Temp2', 'RH2'])
+
             self.data_table = DataTable(
                 expand=1,
                 columns=[
@@ -533,6 +560,9 @@ class DeviceComunication(UserControl):
                 column_spacing=30,
             )
 
+        # Creamos un indice general para los dataframe
+        self.dataframe_indice = 0
+
         # Creamos la columna principal que contiene el título, configuracion serial y tablas
         self.col_main = Column(
             expand=1,
@@ -552,7 +582,8 @@ class DeviceComunication(UserControl):
                     ],
                     alignment=flet.MainAxisAlignment.CENTER
                 ),
-                self.row_progress_bar_and_buttons,
+                self.progress_bar,
+                self.row_data_buttons,
                 Row(
                     controls=[
                         self.data_table
@@ -561,6 +592,7 @@ class DeviceComunication(UserControl):
                 )
             ]
         )
+
 
         # Creamos la fila que contiene toda la MainInterface
         self.row_main = Row(
@@ -585,6 +617,12 @@ class DeviceComunication(UserControl):
         save_file_path = e.path if e.path else "Cancelled!"
         name_file = save_file_path.split("\\")
         print(f'Path: {save_file_path}\nFile name: {name_file[-1]}')
+        if self.data == "Thunder":
+            self.df_datos_thunder.to_csv(save_file_path, index=False)
+        if self.data == "473":
+            self.df_datos_473.to_csv(save_file_path, index=False)
+        if self.data == "Fluke":
+            self.df_datos_fluke.to_csv(save_file_path, index=False)
 
     def establecer_conexion_serial(self, event):
         conexion_satisfactoria = False
@@ -595,7 +633,7 @@ class DeviceComunication(UserControl):
             self.txt_user_help.value = f"Conectando por {self.drop_PORT.value} ..."
             self.txt_user_help.color = None
             self.page.update(self)
-            sleep(3)
+            sleep(2)
             try:
                 self.comunicacion_serial = serial.Serial(str(self.drop_PORT.value), int(self.drop_BAUD.value))
                 conexion_satisfactoria = True
@@ -614,6 +652,7 @@ class DeviceComunication(UserControl):
 
         if conexion_satisfactoria:
             self.row_baud_port.visible = False
+            self.row_data_buttons.visible = True
             # self.progress_bar.value = 1
             # self.progress_bar.color = "green"
             self.txt_user_help.value = f"Conectado a {self.drop_PORT.value} - {self.drop_BAUD.value}"
@@ -621,8 +660,7 @@ class DeviceComunication(UserControl):
 
             # Escondemos la barra de progreso y mostramos los botones de registro de datos
             self.progress_bar.visible = False
-            #self.row_progress_bar_and_buttons.controls.append(self.btn_iniciar_registro_datos)
-            #self.row_progress_bar_and_buttons.controls.append(self.btn_guardar_datos_excel)
+
 
             self.page.update(self)
 
@@ -652,6 +690,14 @@ class DeviceComunication(UserControl):
                 self.txt_saturation_temp_actual.value = str(mensaje_desde_thunder[4])
                 self.txt_chamber_temp_actual.value = str(mensaje_desde_thunder[5])
                 self.txt_flow_rate_actual.value = str(mensaje_desde_thunder[6])
+                # Guardamos en el dataframe si se presiono el boton registrar
+                try:
+                    if self.bool_registrar_datos:
+                        self.dataframe_indice = self.df_datos_thunder.shape[0] + 1
+                        self.df_datos_thunder.loc[self.dataframe_indice] = [mensaje_desde_thunder[0],mensaje_desde_thunder[1]]
+                        self.txt_user_help.value = f"Datos registrados: {self.dataframe_indice}"
+                except Exception as e:
+                    print(f'Error: {e}')
 
                 # Enviamos el mensaje para recibir los valores de setpoint
                 mensaje = "?SP\r"
@@ -662,9 +708,7 @@ class DeviceComunication(UserControl):
                 self.txt_saturation_pressure_setpoint.value = str(mensaje_desde_thunder[2])
                 self.txt_saturation_temp_setpoint.value = str(mensaje_desde_thunder[3])
                 self.txt_flow_rate_actual.value = str(mensaje_desde_thunder[4])
-                # mensaje_serial = self.comunicacion_serial.readline().decode().strip()
-                # self.txt_RH_Pc_actual.value = str(mensaje_serial)
-                # self.grafica.graficar_en_tiempo_real(event=None, value1=self.txt_RH_Pc_actual.value, value2=self.txt_RH_Pc_actual.value)
+
                 self.page.update(self)
             except Exception as e:
                 self.conexion_serial_fallida(error=e)
@@ -712,14 +756,49 @@ class DeviceComunication(UserControl):
                 break
 
     def conexion_serial_fallida(self, error):
+        self.comunicacion_serial.close()
+        self.row_data_buttons.visible = False
         self.row_baud_port.visible = True
-        str_error = str(error).split("(")
+        list_error = str(error).split("(")
         self.progress_bar.visible = True
         self.progress_bar.value = 1
         self.progress_bar.color = "red"
-        self.txt_user_help.value = str_error[0]
+        if list_error[0] == "list index out of range":
+            self.txt_user_help.value = "Proceso finalizado"
+        else:
+            self.txt_user_help.value = list_error[0]
         self.txt_user_help.color = "red"
+        self.page.update(self)
 
+    def registrar_datos(self):
+        if self.btn_iniciar_registro_datos.text == "Registrar":
+            self.bool_registrar_datos = True
+            self.btn_iniciar_registro_datos.text = "Detener"
+            self.btn_guardar_datos.disabled = True
+            self.btn_reset_dataframe.disabled = True
+            print("bool en true")
+        else:
+            self.bool_registrar_datos = False
+            print("bool en false")
+            print(self.df_datos_thunder)
+            self.btn_iniciar_registro_datos.text = "Registrar"
+            if self.dataframe_indice > 0:
+                self.btn_guardar_datos.disabled = False
+                self.btn_reset_dataframe.disabled = False
+        self.page.update(self)
+
+    def resetear_dataframe(self, event):
+        if self.data == "Thunder":
+            self.df_datos_thunder.drop(self.df_datos_thunder.index, inplace=True)
+        if self.data == "473":
+            self.df_datos_473.drop(self.df_datos_473.index, inplace=True)
+        if self.data == "Fluke":
+            self.df_datos_fluke.drop(self.df_datos_fluke.index, inplace=True)
+        self.dataframe_indice = 0
+        self.btn_guardar_datos.disabled = True
+        self.btn_reset_dataframe.disabled = True
+        self.txt_user_help.value = "Datos registrados: 0"
+        self.page.update(self)
 
 class GraficaIndependiente(UserControl):
     def __init__(self, page):
@@ -895,11 +974,11 @@ class Dashboard(UserControl):
                         expand=3,
                         controls=[
                             Container(
-                                expand=2,
+                                expand=1,
                                 content=self.caja_configuracion_serial_thunder
                             ),
                             Column(
-                                expand=3,
+                                expand=2,
                                 spacing=5,
                                 controls=[
                                     Row(

@@ -1,5 +1,7 @@
+import time
+
 import flet
-from flet import AlertDialog,ProgressBar, CircleAvatar, Dropdown, dropdown, Icon, Page, NavigationRail, FloatingActionButton, NavigationRailDestination, padding, \
+from flet import AlertDialog, FilePicker, FilePickerResultEvent, ProgressBar, CircleAvatar, Dropdown, dropdown, Icon, Page, NavigationRail, FloatingActionButton, NavigationRailDestination, padding, \
     IconButton, TextStyle, Slider, TextThemeStyle, FontWeight, TextAlign, colors, TextCapitalization, Theme, UserControl, Container, icons, \
     ElevatedButton, DataTable, DataColumn, DataRow, DataCell, SafeArea, Checkbox, Text, Column, TextField, Row, ImageFit, TextButton
 from time import sleep
@@ -35,7 +37,6 @@ def CajaTextoConIcono(label, src_image, password, icon):
         autofocus=True
     )
     return Row(controls=[icon_caja, txt_caja], expand=1)
-
 
 def SliderAndTextfield(label, suffix):
     slider = Slider(expand=3, active_color="white")
@@ -278,10 +279,29 @@ class DeviceComunication(UserControl):
 
         # Creamos la barra de progreso para la comunicación serial
         self.progress_bar = ProgressBar(
-                                value=0,
-                                color="amber",
-                                bgcolor="#eeeeee"
-                            )
+            expand=1,
+            value=0,
+            color="amber",
+            bgcolor="#eeeeee"
+        )
+        # Creamos los botones para guardar y exportar datos
+        self.btn_iniciar_registro_datos = ElevatedButton(
+            "Iniciar registro",
+            expand=1
+        )
+        # hide all dialogs in overlay
+        save_file_dialog = FilePicker(on_result=self.save_file_result)
+        self.page.overlay.extend([save_file_dialog])
+
+        self.btn_guardar_datos_excel =  ElevatedButton(
+            "Save file",
+            icon=icons.SAVE,
+            on_click=lambda _: save_file_dialog.save_file(file_name="HOLA")
+        )
+        # Creamos la fila que contiene al progress bar y los botones de guardado de datos
+        self.row_progress_bar_and_buttons = Row(
+            controls=[self.progress_bar, self.btn_guardar_datos_excel]
+        )
 
         # Creamos la etiqueta de ayuda al usuario para la comunicación serial
         self.txt_user_help = Text(
@@ -345,8 +365,29 @@ class DeviceComunication(UserControl):
 
         # Creamos las tablas para los diferentes equipos
         if self.data == "Thunder":
-            self.txt_RH_Pc_setpoint_value = Text("0")
-            self.txt_RH_Pc_actual_value = Text("0")
+            self.txt_RH_Pc_setpoint = Text("0")
+            self.txt_RH_Pc_actual = Text("0")
+
+            self.txt_RH_PcTc_setpoint = Text("0")
+            self.txt_RH_PcTc_actual = Text("0")
+
+            self.txt_saturation_pressure_setpoint = Text("0")
+            self.txt_saturation_pressure_actual = Text("0")
+
+            self.txt_chamber_pressure_setpoint = Text("-")
+            self.txt_chamber_pressure_actual = Text("0")
+
+            self.txt_saturation_temp_setpoint = Text("0")
+            self.txt_saturation_temp_actual = Text("0")
+
+            self.txt_chamber_temp_setpoint = Text("-")
+            self.txt_chamber_temp_actual = Text("0")
+
+
+
+
+            self.txt_flow_rate_setpoint = Text("0")
+            self.txt_flow_rate_actual = Text("0")
 
             self.data_table = DataTable(
                 expand=1,
@@ -361,56 +402,56 @@ class DeviceComunication(UserControl):
                         cells=[
                             DataCell(Text("%RH")),
                             DataCell(Text("%Pc")),
-                            DataCell(self.txt_RH_Pc_setpoint_value),
-                            DataCell(self.txt_RH_Pc_actual_value)
+                            DataCell(self.txt_RH_Pc_setpoint),
+                            DataCell(self.txt_RH_Pc_actual)
                         ]
                     ),
                     DataRow(
                         cells=[
                             DataCell(Text("%RH")),
                             DataCell(Text("%PcTc")),
-                            DataCell(Text("0")),
-                            DataCell(Text("0")),
+                            DataCell(self.txt_RH_PcTc_setpoint),
+                            DataCell(self.txt_RH_PcTc_actual),
                         ]
                     ),
                     DataRow(
                         cells=[
                             DataCell(Text("Saturación")),
                             DataCell(Text("Psi")),
-                            DataCell(Text("0")),
-                            DataCell(Text("0")),
+                            DataCell(self.txt_saturation_pressure_setpoint),
+                            DataCell(self.txt_saturation_pressure_actual),
                         ]
                     ),
                     DataRow(
                         cells=[
                             DataCell(Text("Cámara")),
                             DataCell(Text("Psi")),
-                            DataCell(Text("0")),
-                            DataCell(Text("0")),
+                            DataCell(self.txt_chamber_pressure_setpoint),
+                            DataCell(self.txt_chamber_pressure_actual),
                         ]
                     ),
                     DataRow(
                         cells=[
                             DataCell(Text("Saturación")),
                             DataCell(Text("°C")),
-                            DataCell(Text("0")),
-                            DataCell(Text("0")),
+                            DataCell(self.txt_saturation_temp_setpoint),
+                            DataCell(self.txt_saturation_temp_actual),
                         ]
                     ),
                     DataRow(
                         cells=[
                             DataCell(Text("Cámara")),
                             DataCell(Text("°C")),
-                            DataCell(Text("0")),
-                            DataCell(Text("0")),
+                            DataCell(self.txt_chamber_temp_setpoint),
+                            DataCell(self.txt_chamber_temp_actual),
                         ]
                     ),
                     DataRow(
                         cells=[
                             DataCell(Text("Flow")),
                             DataCell(Text("l/m")),
-                            DataCell(Text("0")),
-                            DataCell(Text("0")),
+                            DataCell(self.txt_flow_rate_setpoint),
+                            DataCell(self.txt_flow_rate_actual),
                         ]
                     ),
                 ],
@@ -418,6 +459,10 @@ class DeviceComunication(UserControl):
             )
 
         if self.data == "473":
+            self.txt_RH_473_actual = Text("0")
+            self.txt_DewPoint_473_actual = Text("0")
+            self.txt_ExternalTemp_473_actual = Text("0")
+
             self.data_table = DataTable(
                 expand=1,
                 columns=[
@@ -430,21 +475,21 @@ class DeviceComunication(UserControl):
                         cells=[
                             DataCell(Text("Relative Humidity")),
                             DataCell(Text("%")),
-                            DataCell(Text("0")),
+                            DataCell(self.txt_RH_473_actual),
                         ]
                     ),
                     DataRow(
                         cells=[
                             DataCell(Text("Dew Point")),
                             DataCell(Text("°C")),
-                            DataCell(Text("0")),
+                            DataCell(self.txt_DewPoint_473_actual),
                         ]
                     ),
                     DataRow(
                         cells=[
                             DataCell(Text("External Temp")),
                             DataCell(Text("°C")),
-                            DataCell(Text("0")),
+                            DataCell(self.txt_ExternalTemp_473_actual),
                         ]
                     ),
                 ],
@@ -452,6 +497,12 @@ class DeviceComunication(UserControl):
             )
 
         if self.data == "Fluke":
+            self.txt_temp1_actual = Text("0")
+            self.txt_temp2_actual = Text("0")
+
+            self.txt_RH1_actual = Text("0")
+            self.txt_RH2_actual = Text("0")
+
             self.data_table = DataTable(
                 expand=1,
                 columns=[
@@ -465,16 +516,16 @@ class DeviceComunication(UserControl):
                         cells=[
                             DataCell(Text("Temperatura")),
                             DataCell(Text("°C")),
-                            DataCell(Text("0")),
-                            DataCell(Text("0")),
+                            DataCell(self.txt_temp1_actual),
+                            DataCell(self.txt_temp2_actual),
                         ]
                     ),
                     DataRow(
                         cells=[
                             DataCell(Text("Humedad Relativa")),
                             DataCell(Text("%")),
-                            DataCell(Text("0")),
-                            DataCell(Text("0")),
+                            DataCell(self.txt_RH1_actual),
+                            DataCell(self.txt_RH2_actual),
                         ]
                     ),
 
@@ -484,6 +535,7 @@ class DeviceComunication(UserControl):
 
         # Creamos la columna principal que contiene el título, configuracion serial y tablas
         self.col_main = Column(
+            expand=1,
             spacing=15,
             scroll=flet.ScrollMode.HIDDEN,
             #alignment=flet.MainAxisAlignment.CENTER,
@@ -500,7 +552,7 @@ class DeviceComunication(UserControl):
                     ],
                     alignment=flet.MainAxisAlignment.CENTER
                 ),
-                self.progress_bar,
+                self.row_progress_bar_and_buttons,
                 Row(
                     controls=[
                         self.data_table
@@ -512,6 +564,7 @@ class DeviceComunication(UserControl):
 
         # Creamos la fila que contiene toda la MainInterface
         self.row_main = Row(
+            expand=1,
             controls=[
                 Container(
                     # bgcolor=colors.BLUE_GREY_900,
@@ -528,6 +581,11 @@ class DeviceComunication(UserControl):
         pass
         return self.row_main
 
+    def save_file_result(self, e: FilePickerResultEvent):
+        save_file_path = e.path if e.path else "Cancelled!"
+        name_file = save_file_path.split("\\")
+        print(f'Path: {save_file_path}\nFile name: {name_file[-1]}')
+
     def establecer_conexion_serial(self, event):
         conexion_satisfactoria = False
         # Cambiamos el color
@@ -542,7 +600,6 @@ class DeviceComunication(UserControl):
                 self.comunicacion_serial = serial.Serial(str(self.drop_PORT.value), int(self.drop_BAUD.value))
                 conexion_satisfactoria = True
             except Exception as e:
-                print(e)
                 error = str(e).split("(")
                 self.progress_bar.value = 1
                 self.progress_bar.color = "red"
@@ -557,24 +614,111 @@ class DeviceComunication(UserControl):
 
         if conexion_satisfactoria:
             self.row_baud_port.visible = False
-            self.progress_bar.value = 1
-            self.progress_bar.color = "green"
-            self.txt_user_help.value = "Conectado"
+            # self.progress_bar.value = 1
+            # self.progress_bar.color = "green"
+            self.txt_user_help.value = f"Conectado a {self.drop_PORT.value} - {self.drop_BAUD.value}"
             self.txt_user_help.color = "green"
+
+            # Escondemos la barra de progreso y mostramos los botones de registro de datos
+            self.progress_bar.visible = False
+            #self.row_progress_bar_and_buttons.controls.append(self.btn_iniciar_registro_datos)
+            #self.row_progress_bar_and_buttons.controls.append(self.btn_guardar_datos_excel)
+
             self.page.update(self)
 
             if self.data == "Thunder":
                 self.adquisicion_datos_thunder()
 
+            if self.data == "473":
+                self.adquisicion_datos_473()
+
+            if self.data == "Fluke":
+                self.adquisicion_datos_fluke()
+
+
         self.page.update(self)
 
     def adquisicion_datos_thunder(self):
         while True:
-            mensaje_serial = self.comunicacion_serial.readline().decode().strip()
-            self.txt_RH_Pc_actual_value.value = str(mensaje_serial)
-            self.grafica.graficar_en_tiempo_real(event=None,value1=self.txt_RH_Pc_actual_value.value,value2=self.txt_RH_Pc_actual_value.value)
-            self.page.update(self)
-            print(self.txt_RH_Pc_actual_value.value)
+            try:
+                # Enviamos el mensaje para recibir los valores actuales
+                mensaje = "?\r"
+                self.comunicacion_serial.write(mensaje.encode())
+                mensaje_desde_thunder = self.comunicacion_serial.readline().decode().strip().split(",")
+                self.txt_RH_Pc_actual.value = str(mensaje_desde_thunder[0])
+                self.txt_RH_PcTc_actual.value = str(mensaje_desde_thunder[1])
+                self.txt_saturation_pressure_actual.value = str(mensaje_desde_thunder[2])
+                self.txt_chamber_pressure_actual.value = str(mensaje_desde_thunder[3])
+                self.txt_saturation_temp_actual.value = str(mensaje_desde_thunder[4])
+                self.txt_chamber_temp_actual.value = str(mensaje_desde_thunder[5])
+                self.txt_flow_rate_actual.value = str(mensaje_desde_thunder[6])
+
+                # Enviamos el mensaje para recibir los valores de setpoint
+                mensaje = "?SP\r"
+                self.comunicacion_serial.write(mensaje.encode())
+                mensaje_desde_thunder = self.comunicacion_serial.readline().decode().strip().split(",")
+                self.txt_RH_Pc_setpoint.value = str(mensaje_desde_thunder[0])
+                self.txt_RH_PcTc_setpoint.value = str(mensaje_desde_thunder[1])
+                self.txt_saturation_pressure_setpoint.value = str(mensaje_desde_thunder[2])
+                self.txt_saturation_temp_setpoint.value = str(mensaje_desde_thunder[3])
+                self.txt_flow_rate_actual.value = str(mensaje_desde_thunder[4])
+                # mensaje_serial = self.comunicacion_serial.readline().decode().strip()
+                # self.txt_RH_Pc_actual.value = str(mensaje_serial)
+                # self.grafica.graficar_en_tiempo_real(event=None, value1=self.txt_RH_Pc_actual.value, value2=self.txt_RH_Pc_actual.value)
+                self.page.update(self)
+            except Exception as e:
+                self.conexion_serial_fallida(error=e)
+                break
+
+    def adquisicion_datos_473(self):
+        while True:
+            try:
+                mensaje = "RH?\r"
+                self.comunicacion_serial.write(mensaje.encode())
+                mensaje_desde_473 = self.comunicacion_serial.readline().decode().strip()
+                self.txt_RH_473_actual.value = str(mensaje_desde_473)
+
+                mensaje = "DP?\r"
+                self.comunicacion_serial.write(mensaje.encode())
+                mensaje_desde_473 = self.comunicacion_serial.readline().decode().strip()
+                self.txt_DewPoint_473_actual.value = str(mensaje_desde_473)
+
+                mensaje = "Tx?\r"
+                self.comunicacion_serial.write(mensaje.encode())
+                mensaje_desde_473 = self.comunicacion_serial.readline().decode().strip()
+                self.txt_ExternalTemp_473_actual.value = str(mensaje_desde_473)
+
+                self.page.update(self)
+                time.sleep(2)
+            except Exception as e:
+                self.conexion_serial_fallida(error=e)
+                break
+
+    def adquisicion_datos_fluke(self):
+        while True:
+            try:
+                mensaje_desde_fluke = self.comunicacion_serial.readline().decode()
+                mensaje_desde_fluke = mensaje_desde_fluke.split(",")
+                self.txt_temp1_actual.value = mensaje_desde_fluke[1].strip()
+                self.txt_temp2_actual.value = mensaje_desde_fluke[5].strip()
+                self.txt_RH1_actual.value = mensaje_desde_fluke[3].strip()
+                self.txt_RH2_actual.value = mensaje_desde_fluke[7].strip()
+                # mensaje_serial = self.comunicacion_serial.readline().decode().strip()
+                # self.txt_RH_Pc_actual.value = str(mensaje_serial)
+                # self.grafica.graficar_en_tiempo_real(event=None, value1=self.txt_RH_Pc_actual.value, value2=self.txt_RH_Pc_actual.value)
+                self.page.update(self)
+            except Exception as e:
+                self.conexion_serial_fallida(error=e)
+                break
+
+    def conexion_serial_fallida(self, error):
+        self.row_baud_port.visible = True
+        str_error = str(error).split("(")
+        self.progress_bar.visible = True
+        self.progress_bar.value = 1
+        self.progress_bar.color = "red"
+        self.txt_user_help.value = str_error[0]
+        self.txt_user_help.color = "red"
 
 
 class GraficaIndependiente(UserControl):
@@ -594,15 +738,15 @@ class GraficaIndependiente(UserControl):
             markersize=20,
             label="Actual",
         )
-        #plt.legend(fontsize=30)
+        # plt.legend(fontsize=30)
         # ax.set_ylabel("Valor", fontsize=30, color="red")
         self.ax.tick_params(axis='both', labelsize=30, labelcolor="white")
         self.ax.grid()
         fig.set_figwidth(20)
         # plt.xlabel("# Medición")
         # plt.ylabel("Valor")
-        #self.plt_chart = MatplotlibChart(fig, transparent=True, expand=True)
-        self.plt_chart = MatplotlibChart(fig, transparent=True, isolated=True, expand=True)
+        #self.plt_chart = MatplotlibChart(fig, transparent=True, isolated=True, expand=True)
+        self.plt_chart = MatplotlibChart(fig, transparent=True, isolated=True, expand=1)
 
 
     def build(self):
@@ -622,8 +766,6 @@ class GraficaIndependiente(UserControl):
             self.datos_y.pop(0)
         self.datos_x.append(self.contador)
         self.datos_y.append(int(value1))
-        print(self.datos_x)
-        print(self.datos_y)
         self.ax.clear()
         self.ax.plot(
             self.datos_x,
@@ -642,7 +784,7 @@ class GraficaIndependiente(UserControl):
             linestyle="--",
             color="red",
             linewidth=5,
-            label="Actual",
+            label="Setpoint",
         )
 
         self.ax.tick_params(axis='both', labelsize=30, labelcolor="white")
@@ -753,11 +895,11 @@ class Dashboard(UserControl):
                         expand=3,
                         controls=[
                             Container(
-                                expand=1,
+                                expand=2,
                                 content=self.caja_configuracion_serial_thunder
                             ),
                             Column(
-                                expand=2,
+                                expand=3,
                                 spacing=5,
                                 controls=[
                                     Row(
@@ -767,8 +909,6 @@ class Dashboard(UserControl):
                                             Container(
                                                 expand=1,
                                                 content=self.caja_configuracion_serial_dew473,
-                                                #margin=flet.margin.only(bottom=50)
-                                                #padding=padding.only(bottom=10)
                                             ),
                                             Container(
                                                 expand=1,
@@ -777,9 +917,9 @@ class Dashboard(UserControl):
                                         ]
                                     ),
                                     Container(
+                                        padding = padding.only(right=10),
                                         expand=4,
                                         bgcolor=colors.BLACK87,
-                                        #content=MatplotlibChart(fig, expand=True, transparent=True),
                                         content=self.row_chart_setpoint_and_actual
                                     )
                                 ]
@@ -901,12 +1041,18 @@ if __name__ == "__main__":
             "Oswald Medium": "https://github.com/googlefonts/OswaldFont/blob/main/fonts/ttf/Oswald-Medium.ttf",
         }
         #page.theme = Theme(font_family="Oswald Bold")
+        def save_file_result(e: FilePickerResultEvent):
+            save_file_path = e.path if e.path else "Cancelled!"
+            print(save_file_path)
+
+
+
         page.window_maximized = True
 
         main_interface = Dashboard(page)
         login_interface = LoginInterface(page)
         page.on_route_change = route_change
-        #page.go(page.route)
+        # page.go(page.route)
         page.go("/sensores")
 
     flet.app(target=main)  # view=flet.WEB_BROWSER

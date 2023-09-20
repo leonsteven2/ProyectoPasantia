@@ -1,14 +1,23 @@
-import flet as ft
+import csv
 
-def main(page):
+# Datos que quieres guardar en el archivo CSV
+datos = [
+    ["Nombre", "Edad", "Ciudad"],
+    ["Juan", 25, "Madrid"],
+    ["María", 30, "Barcelona"],
+    ["Carlos", 22, "Valencia"],
+]
 
-    def slider_changed(e):
-        t.value = f"Slider changed to {e.control.value}"
-        page.update()
+# Nombre del archivo CSV en el que quieres guardar los datos
+nombre_archivo = "datos.csv"
 
-    t = ft.Text()
-    page.add(
-        ft.Text("Slider with 'on_change' event:"),
-        ft.Slider(min=0, max=100, divisions=10, label="{value}%", on_change=slider_changed), t)
+# Abre el archivo CSV en modo de escritura
+with open(nombre_archivo, mode="w", newline="") as archivo_csv:
+    # Crea un objeto escritor de CSV
+    escritor_csv = csv.writer(archivo_csv)
 
-ft.app(target=main)
+    # Escribe los datos en el archivo CSV
+    for fila in datos:
+        escritor_csv.writerow(fila)
+
+print(f"Los datos se han guardado en {nombre_archivo}")

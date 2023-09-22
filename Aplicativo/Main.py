@@ -206,6 +206,7 @@ class SetpointBox(UserControl):
     def __init__(self, page):
         super().__init__()
         self.page = page
+        self.bool_enviar_datos = False
 
         # Creamos la caja de setpoint
         self.txt_RH_Pc, slider_RH_Pc = SliderAndTextfield(label="RH @Pc", suffix="%")
@@ -222,6 +223,13 @@ class SetpointBox(UserControl):
 
         self.txt_flow_rate, slider_flow_rate = SliderAndTextfield(label="Flow Rate", suffix="l/m")
         slider_flow_rate.on_change = lambda e: self.slider_value_to_text_field(e, textfield=self.txt_flow_rate)
+
+        self.btn_enviar_setpoint = ElevatedButton(
+            "Enviar Valores",
+            expand=4,
+            on_click=self.enviar_setpoint,
+            disabled=True
+        )
 
         self.row_caja_setpoint = Row(
             expand=1,
@@ -251,7 +259,7 @@ class SetpointBox(UserControl):
                                 slider_sat_temp,
                                 self.txt_flow_rate,
                                 slider_flow_rate,
-                                ElevatedButton("Enviar Valores", expand=4)
+                                self.btn_enviar_setpoint
                             ]
                         )
                     ]
@@ -268,15 +276,29 @@ class SetpointBox(UserControl):
         textfield.value = str(round(y,2))
         self.page.update(self)
 
+    def enviar_setpoint(self, event):
+        self.btn_enviar_setpoint.disabled = True
+        self.btn_enviar_setpoint.text = "Enviando..."
+        self.btn_enviar_setpoint.update()
+        self.bool_enviar_datos = True
+        sleep(2)
+        self.btn_enviar_setpoint.disabled = False
+        self.btn_enviar_setpoint.text = "Enviar Valores"
+        self.btn_enviar_setpoint.update()
+
+    def activar_boton_enviar(self):
+        self.btn_enviar_setpoint.disabled = False
+        self.btn_enviar_setpoint.update()
 
 class DeviceComunication(UserControl):
-    def __init__(self, titulo, default_baud, page, data, grafica=None):
+    def __init__(self, titulo, default_baud, page, data, grafica=None, setpoint=None):
         super().__init__()
         self.titulo = titulo
         self.default_baud = default_baud
         self.page = page
         self.data = data
         self.grafica = grafica
+        self.setpoint_box = setpoint
 
         # Creamos la barra de progreso para la comunicación serial
         self.progress_bar = ProgressBar(
@@ -580,7 +602,7 @@ class DeviceComunication(UserControl):
                     controls=[
                         self.txt_user_help,
                     ],
-                    alignment=flet.MainAxisAlignment.CENTER
+                    alignment=flet.MainAxisAlignment.CENTER,
                 ),
                 self.progress_bar,
                 self.row_data_buttons,
@@ -677,40 +699,57 @@ class DeviceComunication(UserControl):
         self.page.update(self)
 
     def adquisicion_datos_thunder(self):
+        #self.setpoint_box.activar_boton_enviar()
+        self.setpoint_box.btn_enviar_setpoint.disabled = False
+        self.setpoint_box.btn_enviar_setpoint.update()
         while True:
             try:
-                # Enviamos el mensaje para recibir los valores actuales
-                mensaje = "?\r"
-                self.comunicacion_serial.write(mensaje.encode())
-                mensaje_desde_thunder = self.comunicacion_serial.readline().decode().strip().split(",")
-                self.txt_RH_Pc_actual.value = str(mensaje_desde_thunder[0])
-                self.txt_RH_PcTc_actual.value = str(mensaje_desde_thunder[1])
-                self.txt_saturation_pressure_actual.value = str(mensaje_desde_thunder[2])
-                self.txt_chamber_pressure_actual.value = str(mensaje_desde_thunder[3])
-                self.txt_saturation_temp_actual.value = str(mensaje_desde_thunder[4])
-                self.txt_chamber_temp_actual.value = str(mensaje_desde_thunder[5])
-                self.txt_flow_rate_actual.value = str(mensaje_desde_thunder[6])
+                if self.setpoint_box.bool_enviar_datos == False:
+                    # Enviamos el mensaje para recibir los valores actuales
+                    mensaje = "?\r"
+                    self.comunicacion_serial.write(mensaje.encode())
+                    mensaje_desde_thunder = self.comunicacion_serial.readline().decode().strip().split(",")
+                    self.txt_RH_Pc_actual.value = str(mensaje_desde_thunder[0])
+                    self.txt_RH_PcTc_actual.value = str(mensaje_desde_thunder[1])
+                    self.txt_saturation_pressure_actual.value = str(mensaje_desde_thunder[2])
+                    self.txt_chamber_pressure_actual.value = str(mensaje_desde_thunder[3])
+                    self.txt_saturation_temp_actual.value = str(mensaje_desde_thunder[4])
+                    self.txt_chamber_temp_actual.value = str(mensaje_desde_thunder[5])
+                    self.txt_flow_rate_actual.value = str(mensaje_desde_thunder[6])
+
+                    # Enviamos el mensaje para recibir los valores de setpoint
+                    mensaje = "?SP\r"
+                    self.comunicacion_serial.write(mensaje.encode())
+                    mensaje_desde_thunder = self.comunicacion_serial.readline().decode().strip().split(",")
+                    self.txt_RH_Pc_setpoint.value = str(mensaje_desde_thunder[0])
+                    self.txt_RH_PcTc_setpoint.value = str(mensaje_desde_thunder[1])
+                    self.txt_saturation_pressure_setpoint.value = str(mensaje_desde_thunder[2])
+                    self.txt_saturation_temp_setpoint.value = str(mensaje_desde_thunder[3])
+                    self.txt_flow_rate_actual.value = str(mensaje_desde_thunder[4])
+                    print("Datos recibidos desde thunder")
+                else:
+                    mensaje = f"R1={self.setpoint_box.txt_RH_Pc.value}\r"
+                    print(f'El setpoint a ser enviado es: {mensaje}')
+                    # self.comunicacion_serial.write(mensaje.encode())
+                    # mensaje_desde_thunder = self.comunicacion_serial.readline().decode()
+                    # print(mensaje_desde_thunder)
+                    self.setpoint_box.bool_enviar_datos = False
                 # Guardamos en el dataframe si se presiono el boton registrar
                 try:
                     if self.bool_registrar_datos:
                         self.dataframe_indice = self.df_datos_thunder.shape[0] + 1
-                        self.df_datos_thunder.loc[self.dataframe_indice] = [mensaje_desde_thunder[0],mensaje_desde_thunder[1]]
+                        self.df_datos_thunder.loc[self.dataframe_indice] = [self.txt_RH_Pc_actual.value,self.txt_RH_PcTc_actual.value]
                         self.txt_user_help.value = f"Datos registrados: {self.dataframe_indice}"
                 except Exception as e:
                     print(f'Error: {e}')
 
-                # Enviamos el mensaje para recibir los valores de setpoint
-                mensaje = "?SP\r"
-                self.comunicacion_serial.write(mensaje.encode())
-                mensaje_desde_thunder = self.comunicacion_serial.readline().decode().strip().split(",")
-                self.txt_RH_Pc_setpoint.value = str(mensaje_desde_thunder[0])
-                self.txt_RH_PcTc_setpoint.value = str(mensaje_desde_thunder[1])
-                self.txt_saturation_pressure_setpoint.value = str(mensaje_desde_thunder[2])
-                self.txt_saturation_temp_setpoint.value = str(mensaje_desde_thunder[3])
-                self.txt_flow_rate_actual.value = str(mensaje_desde_thunder[4])
 
+
+                self.grafica.graficar_en_tiempo_real(value1=self.txt_RH_Pc_actual.value,
+                                                     value2=self.txt_RH_Pc_setpoint.value)
                 self.page.update(self)
             except Exception as e:
+                print(e)
                 self.conexion_serial_fallida(error=e)
                 break
 
@@ -755,6 +794,9 @@ class DeviceComunication(UserControl):
                 self.conexion_serial_fallida(error=e)
                 break
 
+    def enviar_setpoint(self):
+        print("Esta es la funcion enviar_setpoint")
+
     def conexion_serial_fallida(self, error):
         self.comunicacion_serial.close()
         self.row_data_buttons.visible = False
@@ -768,6 +810,10 @@ class DeviceComunication(UserControl):
         else:
             self.txt_user_help.value = list_error[0]
         self.txt_user_help.color = "red"
+
+        self.btn_iniciar_registro_datos.text = "Registrar"
+        self.bool_registrar_datos = False
+
         self.page.update(self)
 
     def registrar_datos(self):
@@ -779,8 +825,6 @@ class DeviceComunication(UserControl):
             print("bool en true")
         else:
             self.bool_registrar_datos = False
-            print("bool en false")
-            print(self.df_datos_thunder)
             self.btn_iniciar_registro_datos.text = "Registrar"
             if self.dataframe_indice > 0:
                 self.btn_guardar_datos.disabled = False
@@ -838,13 +882,13 @@ class GraficaIndependiente(UserControl):
         )
         return self.row_chart
 
-    def graficar_en_tiempo_real(self, event, value1, value2):
+    def graficar_en_tiempo_real(self, value1, value2):
         self.contador = self.contador + 1
         if len(self.datos_x) >= 15:
             self.datos_x.pop(0)
             self.datos_y.pop(0)
         self.datos_x.append(self.contador)
-        self.datos_y.append(int(value1))
+        self.datos_y.append(float(value1))
         self.ax.clear()
         self.ax.plot(
             self.datos_x,
@@ -859,7 +903,7 @@ class GraficaIndependiente(UserControl):
 
         self.ax.plot(
             [self.datos_x[0],self.datos_x[-1]],
-            [50,50],
+            [float(value2),float(value2)],
             linestyle="--",
             color="red",
             linewidth=5,
@@ -878,9 +922,12 @@ class Dashboard(UserControl):
         # Creamos la gráfica
         self.row_chart_setpoint_and_actual = GraficaIndependiente(page=self.page)
 
+        # Creamos la caja de setpoint
+        self.setpoint_box = SetpointBox(page=self.page)
+
         # Creamos las cajas de configuración serial para cada dispositivo
         self.caja_configuracion_serial_thunder = DeviceComunication(titulo="Thunder Scientific", default_baud="2400",
-                                                               page=self.page, data="Thunder", grafica=self.row_chart_setpoint_and_actual)
+                                                               page=self.page, data="Thunder", grafica=self.row_chart_setpoint_and_actual, setpoint=self.setpoint_box)
         self.caja_configuracion_serial_dew473 = DeviceComunication(titulo="Dew Point Mirror - 473", default_baud="9600",
                                                               page=self.page, data="473")
         self.caja_configuracion_serial_fluke = DeviceComunication(titulo="Fluke - DewK ", default_baud="9600",
@@ -925,8 +972,8 @@ class Dashboard(UserControl):
                             ),
                             NavigationRailDestination(
                                 # padding=padding.only(left=5),
-                                icon=icons.PERSON,
-                                label_content=Text("Admin", style=TextThemeStyle.BODY_LARGE, weight=FontWeight.BOLD),
+                                icon=icons.NEWSPAPER,
+                                label_content=Text("Report", style=TextThemeStyle.BODY_LARGE, weight=FontWeight.BOLD),
                             ),
                             NavigationRailDestination(
                                 # padding=padding.only(left=5),
@@ -958,6 +1005,7 @@ class Dashboard(UserControl):
             )
         )
 
+
         self.container_dashboard = Container(
             expand=7,
             content=Column(
@@ -966,7 +1014,7 @@ class Dashboard(UserControl):
                     Container(
                         bgcolor=colors.BLACK87,
                         expand=1,
-                        content=SetpointBox(page=self.page),
+                        content=self.setpoint_box,
                         padding=padding.all(10),
                     ),
                     Row(
@@ -1080,8 +1128,16 @@ class HomePage(UserControl):
 
 if __name__ == "__main__":
     def main(page: Page):
-        # page.theme_mode = flet.ThemeMode.LIGHT
         page.title = "Login Interface"
+        #page.theme = flet.theme.Theme(color_scheme_seed="pink")
+        theme = flet.Theme()
+        theme.page_transitions.windows = flet.PageTransitionTheme.CUPERTINO
+        page.theme = theme
+        page.window_left = 1000
+        page.window_frameless = True
+        page.window_maximized = True
+        page.window_min_width = 1200
+        page.window_min_height = 700
 
         def route_change(route):
             page.views.clear()
@@ -1126,7 +1182,7 @@ if __name__ == "__main__":
 
 
 
-        page.window_maximized = True
+
 
         main_interface = Dashboard(page)
         login_interface = LoginInterface(page)

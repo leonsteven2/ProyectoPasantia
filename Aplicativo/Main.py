@@ -54,15 +54,6 @@ class LoginInterface(UserControl):
             modal=True,
             title=Text("Send New Password"),
             content=TextField(label="Email", suffix=Text("@gmail.com")),
-
-            # Column(
-            #     # controls=[
-            #     #     Text("Ingrese su correo", size=15),
-            #     #     # TextField(label="Email", suffix=Text("@gmail.com")),
-            #     #     # Text("Se", size=15, color=colors.RED_500),
-            #     #     # Text("ASD", size=15, color=colors.RED_500, text_align=flet.TextAlign.CENTER),
-            #     # ]
-            # ),
             actions=[
                 TextButton("Send", on_click=self.close_dlg),
                 TextButton("Close", on_click=self.close_dlg),
@@ -79,7 +70,7 @@ class LoginInterface(UserControl):
                     border_radius=30,
                     expand=2,
                     alignment=flet.alignment.center,
-                    image_src="C:\\Users\\USER\PycharmProjects\ProyectoPasantia\Aplicativo\Assets\InenPortada.png",
+                    image_src="Assets\InenPortada.png",
                     image_fit=ImageFit.COVER,
                 ),
                 Container(
@@ -289,6 +280,7 @@ class SetpointBox(UserControl):
     def activar_boton_enviar(self):
         self.btn_enviar_setpoint.disabled = False
         self.btn_enviar_setpoint.update()
+
 
 class DeviceComunication(UserControl):
     def __init__(self, titulo, default_baud, page, data, grafica=None, setpoint=None):
@@ -844,6 +836,7 @@ class DeviceComunication(UserControl):
         self.txt_user_help.value = "Datos registrados: 0"
         self.page.update(self)
 
+
 class GraficaIndependiente(UserControl):
     def __init__(self, page):
         super().__init__()
@@ -1162,7 +1155,7 @@ if __name__ == "__main__":
                         "/sensores",
                         [
                             SafeArea(
-                                content=main_interface,
+                                content=dashboard_interface,
                                 expand=True,
                             )
                         ]
@@ -1180,11 +1173,7 @@ if __name__ == "__main__":
             save_file_path = e.path if e.path else "Cancelled!"
             print(save_file_path)
 
-
-
-
-
-        main_interface = Dashboard(page)
+        dashboard_interface = Dashboard(page)
         login_interface = LoginInterface(page)
         page.on_route_change = route_change
         # page.go(page.route)

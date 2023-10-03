@@ -50,4 +50,4 @@ def main(page: Page):
     page.go("/login")
 
 
-app(target=main)
+app(target=main, assets_dir="assets")

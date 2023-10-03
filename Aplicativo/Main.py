@@ -1,6 +1,7 @@
 import time
-
+import pymysql
 import flet
+import credenciales
 from flet import AlertDialog, FilePicker, FilePickerResultEvent, ProgressBar, CircleAvatar, Dropdown, dropdown, Icon, Page, NavigationRail, NavigationRailDestination, padding, \
     IconButton, TextStyle, Slider, TextThemeStyle, FontWeight, TextAlign, colors, TextCapitalization, UserControl, Container, icons, \
     ElevatedButton, DataTable, DataColumn, DataRow, DataCell, SafeArea, Checkbox, Text, Column, TextField, Row, ImageFit, TextButton
@@ -305,6 +306,8 @@ class DeviceComunication(UserControl):
             "Registrar",
             expand=1,
             on_click=lambda _: self.registrar_datos(),
+            bgcolor="green",
+            color="white"
         )
         # hide all dialogs in overlay
         save_file_dialog = FilePicker(on_result=self.save_file_result)
@@ -313,21 +316,34 @@ class DeviceComunication(UserControl):
             ".csv",
             icon=icons.SAVE,
             disabled=True,
-            expand=1,
             on_click=lambda _: save_file_dialog.save_file(file_name="datos.csv", allowed_extensions=["csv"])
         )
         # Creamos el boton para resetear los datos del dataframe
-        self.btn_reset_dataframe = ElevatedButton(
-            "Reset",
+        self.btn_reset_dataframe = IconButton(
+            icon=icons.RESTART_ALT,
+            icon_color="white",
             disabled=True,
             on_click=self.resetear_dataframe
         )
+        # self.btn_reset_dataframe = ElevatedButton(
+        #     "Reset",
+        #     disabled=True,
+        #     on_click=self.resetear_dataframe
+        # )
         # Creamos el botón para salir de la conexión
         self.btn_exit = IconButton(
             bgcolor=colors.RED_400,
             icon=icons.EXIT_TO_APP_ROUNDED,
             icon_color="white",
             on_click=lambda _: self.conexion_serial_fallida("Proceso finalizado")
+        )
+
+        # Creamos el botón para enviar datos a la nube
+        self.btn_send_data_cloud = IconButton(
+            icon=icons.CLOUD_UPLOAD,
+            icon_color="white",
+            #disabled=True,
+            on_click=self.enviar_datos_a_mysql
         )
 
         # Creamos la fila que contiene al progress bar y los botones de guardado de datos
@@ -337,9 +353,11 @@ class DeviceComunication(UserControl):
                 self.btn_iniciar_registro_datos,
                 self.btn_guardar_datos,
                 self.btn_reset_dataframe,
+                self.btn_send_data_cloud,
                 self.btn_exit
             ]
         )
+
 
         # Creamos la etiqueta de ayuda al usuario para la comunicación serial
         self.txt_user_help = Text(
@@ -811,13 +829,19 @@ class DeviceComunication(UserControl):
     def registrar_datos(self):
         if self.btn_iniciar_registro_datos.text == "Registrar":
             self.bool_registrar_datos = True
+
             self.btn_iniciar_registro_datos.text = "Detener"
+            self.btn_iniciar_registro_datos.bgcolor = "red"
+
             self.btn_guardar_datos.disabled = True
             self.btn_reset_dataframe.disabled = True
             print("bool en true")
         else:
             self.bool_registrar_datos = False
+
             self.btn_iniciar_registro_datos.text = "Registrar"
+            self.btn_iniciar_registro_datos.bgcolor = "green"
+
             if self.dataframe_indice > 0:
                 self.btn_guardar_datos.disabled = False
                 self.btn_reset_dataframe.disabled = False
@@ -835,6 +859,31 @@ class DeviceComunication(UserControl):
         self.btn_reset_dataframe.disabled = True
         self.txt_user_help.value = "Datos registrados: 0"
         self.page.update(self)
+
+    def enviar_datos_a_mysql(self, e):
+        # Accedemos a la base de datos en mysql
+        try:
+            database = pymysql.connect(
+                host=credenciales.host,
+                user=credenciales.user,
+                password=credenciales.password,
+                database=credenciales.database,
+            )
+            cursor = database.cursor()
+
+            if self.data == "Thunder":
+                lista = self.df_datos_thunder
+                comando_sql = "insert into rhpc values "
+                for i in range(0, len(lista)):
+                    separator = "," if i < (len(lista) - 1) else ";"
+                    comando_sql = comando_sql + f"\n('{lista['RH %Pc'].iloc[i]}','{lista['RH%PcTc'].iloc[i]}'){separator}"
+                cursor.execute(comando_sql)
+                database.commit()
+                self.txt_user_help.value = "Datos enviados a MYSQL"
+                self.txt_user_help.update()
+
+        except Exception as e:
+            print(e)
 
 
 class GraficaIndependiente(UserControl):
@@ -919,20 +968,19 @@ class Dashboard(UserControl):
         self.setpoint_box = SetpointBox(page=self.page)
 
         # Creamos las cajas de configuración serial para cada dispositivo
-        self.caja_configuracion_serial_thunder = DeviceComunication(titulo="Thunder Scientific", default_baud="2400",
+        self.caja_configuracion_serial_thunder = DeviceComunication(titulo="Thunder Scientific", default_baud="9600",
                                                                page=self.page, data="Thunder", grafica=self.row_chart_setpoint_and_actual, setpoint=self.setpoint_box)
         self.caja_configuracion_serial_dew473 = DeviceComunication(titulo="Dew Point Mirror - 473", default_baud="9600",
                                                               page=self.page, data="473")
         self.caja_configuracion_serial_fluke = DeviceComunication(titulo="Fluke - DewK ", default_baud="9600",
                                                              page=self.page, data="Fluke")
 
-        self.container_all_serial_configuration = Container(
+        self.container_user_options = Container(
             bgcolor="#2D2F31",
-            padding=padding.all(5),
-            expand=1,
+            padding=padding.only(top=30, left=5, right=5, bottom=30),
             content=Column(
+                horizontal_alignment="center",
                 controls=[
-                    Text(""),
                     Row(
                         controls=[
                             CircleAvatar(
@@ -950,7 +998,9 @@ class Dashboard(UserControl):
                         group_alignment=-0.9,
                         bgcolor=colors.TRANSPARENT,
                         expand=1,
-                        extended=True,
+                        min_extended_width=170,
+                        min_width=80,
+                        extended=False,
                         destinations=[
                             NavigationRailDestination(
                                 # padding=padding.only(left=5),
@@ -991,8 +1041,7 @@ class Dashboard(UserControl):
                             )
                         ],
                         alignment=flet.MainAxisAlignment.CENTER
-                    ),
-                    Text("")
+                    )
 
                 ],
             )
@@ -1054,7 +1103,7 @@ class Dashboard(UserControl):
         self.container_main = Container(
             content=Row(
                 controls=[
-                    self.container_all_serial_configuration,
+                    self.container_user_options,
                     self.container_dashboard
                 ],
                 spacing=5,
@@ -1179,4 +1228,4 @@ if __name__ == "__main__":
         # page.go(page.route)
         page.go("/sensores")
 
-    flet.app(target=main)  # view=flet.WEB_BROWSER
+    flet.app(target=main, assets_dir="assets")  # view=flet.WEB_BROWSER

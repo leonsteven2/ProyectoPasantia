@@ -1,4 +1,4 @@
-from flet import app, SafeArea, UserControl, TextAlign, Page, RoundedRectangleBorder, ButtonStyle, ElevatedButton, TextThemeStyle, Checkbox, MainAxisAlignment, Image, Column, icons, alignment, LinearGradient, MainAxisAlignment, FontWeight, TextCapitalization, Icon, TextStyle, colors, AlertDialog, Text, TextField, TextButton, Row, Container, ImageFit
+from flet import app, UserControl, TextAlign, Page, RoundedRectangleBorder, ButtonStyle, ElevatedButton, TextThemeStyle, Checkbox, MainAxisAlignment, Image, Column, icons, alignment, LinearGradient, MainAxisAlignment, FontWeight, TextCapitalization, Icon, TextStyle, colors, AlertDialog, Text, TextField, TextButton, Row, Container, ImageFit
 
 def CajaTextoConIcono(label, src_image, password, icon):
     icon_caja = Icon(
@@ -54,7 +54,7 @@ class LoginInterface(UserControl):
                     border_radius=30,
                     expand=2,
                     alignment=alignment.center,
-                    image_src="Assets\InenPortada.png",
+                    image_src="images\InenPortada.png",
                     image_fit=ImageFit.COVER,
                 ),
                 Container(
@@ -104,7 +104,7 @@ class LoginInterface(UserControl):
                             Image(
                                 width=120,
                                 height=120,
-                                src=f"Assets/LogoPrincipal.svg"),
+                                src=f"images/LogoPrincipal.svg"),
                         ],
                         alignment=MainAxisAlignment.CENTER
                     ),

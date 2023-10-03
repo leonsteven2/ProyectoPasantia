@@ -9,4 +9,5 @@ df.loc[1] = ['María', 30]
 df.loc[2] = ['Pedro', 22]
 
 longitud = df.shape[0]
-print(df)
+for i in range(0, len(df)):
+    print(f'Nombre: {df["Nombre"].iloc[i]} y edad: {df["Edad"].iloc[i]}')

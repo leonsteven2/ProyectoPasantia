@@ -5,7 +5,7 @@ import credenciales
 from flet import AlertDialog, FilePicker, FilePickerResultEvent, ProgressBar, CircleAvatar, Dropdown, dropdown, Icon, Page, NavigationRail, NavigationRailDestination, padding, \
     IconButton, TextStyle, Slider, TextThemeStyle, FontWeight, TextAlign, colors, TextCapitalization, UserControl, Container, icons, \
     ElevatedButton, DataTable, DataColumn, DataRow, DataCell, SafeArea, Checkbox, Text, Column, TextField, Row, ImageFit, TextButton
-from time import sleep
+from time import sleep, strftime
 import serial
 import pandas as pd
 
@@ -444,7 +444,17 @@ class DeviceComunication(UserControl):
             self.txt_flow_rate_setpoint = Text("0")
             self.txt_flow_rate_actual = Text("0")
 
-            self.df_datos_thunder = pd.DataFrame(columns=['RH %Pc', 'RH%PcTc'])
+
+            self.df_datos_thunder = pd.DataFrame(columns=[
+                'id_equipo', 'fecha', 'hora',
+                'rh_pc_sp', 'rh_pc', 'unit_rh_pc',
+                'rh_pctc_sp', 'rh_pctc', 'unit_pctc',
+                'satur_pressure_sp', 'satur_pressure', 'unit_satur_pressure',
+                'chmbr_pressure', 'unit_chmbr_pressure',
+                'satur_temp_sp', 'satur_temp', 'unit_satur_temp',
+                'chmbr_temp', 'unit_chmbr_temp',
+                'flow_sp', 'flow', 'unit_flow'
+            ])
 
             self.data_table = DataTable(
                 expand=1,
@@ -669,7 +679,11 @@ class DeviceComunication(UserControl):
             self.page.update(self)
             sleep(2)
             try:
-                self.comunicacion_serial = serial.Serial(str(self.drop_PORT.value), int(self.drop_BAUD.value))
+                self.comunicacion_serial = serial.Serial(
+                    str(self.drop_PORT.value),
+                    int(self.drop_BAUD.value),
+                    timeout=1
+                )
                 conexion_satisfactoria = True
             except Exception as e:
                 error = str(e).split("(")
@@ -710,102 +724,109 @@ class DeviceComunication(UserControl):
 
         self.page.update(self)
 
-    def adquisicion_datos_thunder2(self):
-        while self.row_data_buttons.visible == True:
-            try:
-                mensaje = "?\r"  # "R1=30\r"
-                self.comunicacion_serial.write(mensaje.encode())
-                mensaje_desde_thunder = self.comunicacion_serial.readline().decode().strip().split(",")
-                print(mensaje_desde_thunder)
-                try:
-                    self.txt_RH_Pc_actual.value = str(mensaje_desde_thunder[0])
-                    self.txt_RH_PcTc_actual.value = str(mensaje_desde_thunder[1])
-                    self.txt_saturation_pressure_actual.value = str(mensaje_desde_thunder[2])
-                    self.txt_chamber_pressure_actual.value = str(mensaje_desde_thunder[3])
-                    self.txt_saturation_temp_actual.value = str(mensaje_desde_thunder[4])
-                    self.txt_chamber_temp_actual.value = str(mensaje_desde_thunder[5])
-                    self.txt_flow_rate_actual.value = str(mensaje_desde_thunder[6])
-                except:
-                    print("No se pudo enlistar")
-
-                try:
-                    if self.bool_registrar_datos:
-                        self.dataframe_indice = self.df_datos_thunder.shape[0] + 1
-                        self.df_datos_thunder.loc[self.dataframe_indice] = [self.txt_RH_Pc_actual.value,
-                                                                            self.txt_RH_PcTc_actual.value]
-                        self.txt_user_help.value = f"Datos registrados: {self.dataframe_indice}"
-                except Exception as e:
-                    print(f'Error: {e}')
-
-                # mensaje = "?SP\r"
-                # self.comunicacion_serial.write(mensaje.encode())
-                # mensaje_desde_thunder2 = self.comunicacion_serial.readline().decode().strip().split(",")
-                # self.txt_RH_Pc_setpoint.value = str(mensaje_desde_thunder2[0])
-                # self.txt_RH_PcTc_setpoint.value = str(mensaje_desde_thunder2[1])
-                # self.txt_saturation_pressure_setpoint.value = str(mensaje_desde_thunder2[2])
-                # self.txt_saturation_temp_setpoint.value = str(mensaje_desde_thunder2[3])
-                # self.txt_flow_rate_actual.value = str(mensaje_desde_thunder2[4])
-
-                self.page.update(self)
-                time.sleep(2)
-
-
-            except Exception as e:
-                self.conexion_serial_fallida(error=e)
-                break
-        self.comunicacion_serial.close()
-
     def adquisicion_datos_thunder(self):
         #self.setpoint_box.activar_boton_enviar()
         self.setpoint_box.btn_enviar_setpoint.disabled = False
         self.setpoint_box.btn_enviar_setpoint.update()
         while True:
+            sleep(2)
             try:
                 if self.setpoint_box.bool_enviar_datos == False:
                     # Enviamos el mensaje para recibir los valores actuales
                     mensaje = "?\r"
                     self.comunicacion_serial.write(mensaje.encode())
-                    mensaje_desde_thunder = self.comunicacion_serial.readline().decode().strip().split(",")
-                    self.txt_RH_Pc_actual.value = str(mensaje_desde_thunder[0])
-                    self.txt_RH_PcTc_actual.value = str(mensaje_desde_thunder[1])
-                    self.txt_saturation_pressure_actual.value = str(mensaje_desde_thunder[2])
-                    self.txt_chamber_pressure_actual.value = str(mensaje_desde_thunder[3])
-                    self.txt_saturation_temp_actual.value = str(mensaje_desde_thunder[4])
-                    self.txt_chamber_temp_actual.value = str(mensaje_desde_thunder[5])
-                    self.txt_flow_rate_actual.value = str(mensaje_desde_thunder[6])
+                    try:
+                        mensaje_desde_thunder = self.comunicacion_serial.readline().decode().strip().split(",")
+                    except:
+                        print("No pudo leer o splitear")
+                        continue
+                    try:
+                        self.txt_RH_Pc_actual.value = str(mensaje_desde_thunder[0])
+                        self.txt_RH_PcTc_actual.value = str(mensaje_desde_thunder[1])
+                        self.txt_saturation_pressure_actual.value = str(mensaje_desde_thunder[2])
+                        self.txt_chamber_pressure_actual.value = str(mensaje_desde_thunder[3])
+                        self.txt_saturation_temp_actual.value = str(mensaje_desde_thunder[4])
+                        self.txt_chamber_temp_actual.value = str(mensaje_desde_thunder[5])
+                        self.txt_flow_rate_actual.value = str(mensaje_desde_thunder[6])
+                    except:
+                        continue
 
                     # Enviamos el mensaje para recibir los valores de setpoint
                     mensaje = "?SP\r"
-                    self.comunicacion_serial.write(mensaje.encode())
-                    mensaje_desde_thunder = self.comunicacion_serial.readline().decode().strip().split(",")
-                    self.txt_RH_Pc_setpoint.value = str(mensaje_desde_thunder[0])
-                    self.txt_RH_PcTc_setpoint.value = str(mensaje_desde_thunder[1])
-                    self.txt_saturation_pressure_setpoint.value = str(mensaje_desde_thunder[2])
-                    self.txt_saturation_temp_setpoint.value = str(mensaje_desde_thunder[3])
-                    self.txt_flow_rate_actual.value = str(mensaje_desde_thunder[4])
-                    print("Datos recibidos desde thunder")
+
+                    try:
+                        self.comunicacion_serial.write(mensaje.encode())
+                        mensaje_desde_thunder = self.comunicacion_serial.readline().decode().strip().split(",")
+                        self.txt_RH_Pc_setpoint.value = str(mensaje_desde_thunder[0])
+                        self.txt_RH_PcTc_setpoint.value = str(mensaje_desde_thunder[1])
+                        self.txt_saturation_pressure_setpoint.value = str(mensaje_desde_thunder[2])
+                        self.txt_saturation_temp_setpoint.value = str(mensaje_desde_thunder[3])
+                        self.txt_flow_rate_setpoint.value = str(mensaje_desde_thunder[4])
+                    except:
+                        continue
+
                 else:
-                    mensaje = f"R1={self.setpoint_box.txt_RH_Pc.value}\r"
-                    print(f'El setpoint a ser enviado es: {mensaje}')
-                    # self.comunicacion_serial.write(mensaje.encode())
-                    # mensaje_desde_thunder = self.comunicacion_serial.readline().decode()
-                    # print(mensaje_desde_thunder)
+
+                    # Enviar datos
+                    if float(self.setpoint_box.txt_RH_Pc.value) > 1:
+                        mensaje = f"R1={self.setpoint_box.txt_RH_Pc.value}\r"
+                        self.enviar_setpoint(mensaje=mensaje)
+                    sleep(2)
+
+                    if float(self.setpoint_box.txt_RH_PcTc.value) > 1:
+                        mensaje = f"R2={self.setpoint_box.txt_RH_PcTc.value}\r"
+                        self.enviar_setpoint(mensaje=mensaje)
+                    sleep(2)
+
+                    if float(self.setpoint_box.txt_sat_pressure.value) > 1:
+                        mensaje = f"PS={self.setpoint_box.txt_sat_pressure.value}\r"
+                        self.enviar_setpoint(mensaje=mensaje)
+                    sleep(2)
+
+                    if float(self.setpoint_box.txt_sat_temp.value) > 1:
+                        mensaje = f"TS={self.setpoint_box.txt_sat_temp.value}\r"
+                        self.enviar_setpoint(mensaje=mensaje)
+                    sleep(2)
+
+                    if float(self.setpoint_box.txt_flow_rate.value) > 1:
+                        mensaje = f"FS={self.setpoint_box.txt_flow_rate.value}\r"
+                        self.enviar_setpoint(mensaje=mensaje)
+                    sleep(2)
+
                     self.setpoint_box.bool_enviar_datos = False
+
+
                 # Guardamos en el dataframe si se presiono el boton registrar
                 try:
                     if self.bool_registrar_datos:
+
+                        hora = strftime("%H:%M:%S")
+                        fecha = strftime("20%y-%m-%d")
                         self.dataframe_indice = self.df_datos_thunder.shape[0] + 1
-                        self.df_datos_thunder.loc[self.dataframe_indice] = [self.txt_RH_Pc_actual.value,self.txt_RH_PcTc_actual.value]
+                        self.df_datos_thunder.loc[self.dataframe_indice] = [
+                            "1207906",fecha, hora,
+                            self.txt_RH_Pc_setpoint.value, self.txt_RH_Pc_actual.value, "%HR",
+                            self.txt_RH_PcTc_setpoint.value, self.txt_RH_PcTc_actual.value, "%HR",
+                            self.txt_saturation_pressure_setpoint.value, self.txt_saturation_pressure_actual.value, "psi",
+                            self.txt_chamber_pressure_actual.value, "psi",
+                            self.txt_saturation_temp_setpoint.value, self.txt_saturation_temp_actual.value, "C",
+                            self.txt_chamber_temp_actual.value, "C",
+                            self.txt_flow_rate_setpoint.value, self.txt_flow_rate_actual.value, "l/m"
+
+
+                        ]
                         self.txt_user_help.value = f"Datos registrados: {self.dataframe_indice}"
                         self.txt_user_help.color = "green"
                 except Exception as e:
                     print(f'Error: {e}')
 
+                try:
+                    self.grafica.graficar_en_tiempo_real(value1=self.txt_RH_Pc_actual.value, value2=self.txt_RH_Pc_setpoint.value)
+                except Exception as e:
+                    print(f"No se pudo graficar: {e}")
 
+                self.col_main.update()
 
-                self.grafica.graficar_en_tiempo_real(value1=self.txt_RH_Pc_actual.value,
-                                                     value2=self.txt_RH_Pc_setpoint.value)
-                self.page.update(self)
             except Exception as e:
                 print(e)
                 self.conexion_serial_fallida(error=e)
@@ -852,8 +873,18 @@ class DeviceComunication(UserControl):
                 self.conexion_serial_fallida(error=e)
                 break
 
-    def enviar_setpoint(self):
+    def enviar_setpoint(self, mensaje):
         print("Esta es la funcion enviar_setpoint")
+        try:
+            self.comunicacion_serial.write(mensaje.encode())
+            self.txt_user_help.value = f'Setpoint Enviado: {mensaje}'
+            self.txt_user_help.color = "yellow"
+
+        except Exception as e:
+            self.txt_user_help.value = f'No se pudo enviar Setpoint.'
+            self.txt_user_help.color = "red"
+        self.txt_user_help.update()
+
 
     def conexion_serial_fallida(self, error):
         self.comunicacion_serial.close()
@@ -863,6 +894,7 @@ class DeviceComunication(UserControl):
         self.progress_bar.visible = True
         self.progress_bar.value = 1
         self.progress_bar.color = "red"
+
         if list_error[0] == "list index out of range":
             self.txt_user_help.value = "Proceso finalizado"
         else:
@@ -907,7 +939,6 @@ class DeviceComunication(UserControl):
         self.dataframe_indice = 0
         self.btn_guardar_datos.disabled = True
         self.btn_reset_dataframe.disabled = True
-        self.btn_send_data_cloud = True
         self.txt_user_help.value = "Datos registrados: 0"
         self.page.update(self)
 
@@ -924,10 +955,19 @@ class DeviceComunication(UserControl):
 
             if self.data == "Thunder":
                 lista = self.df_datos_thunder
-                comando_sql = "insert into rhpc values "
+                comando_sql = "insert into lab_humedad values "
                 for i in range(0, len(lista)):
                     separator = "," if i < (len(lista) - 1) else ";"
-                    comando_sql = comando_sql + f"\n('{lista['RH %Pc'].iloc[i]}','{lista['RH%PcTc'].iloc[i]}'){separator}"
+                    comando_sql = comando_sql + f"\n('{lista['id_equipo'].iloc[i]}','{lista['fecha'].iloc[i]}','{lista['hora'].iloc[i]}','" \
+                                                f"{lista['rh_pc_sp'].iloc[i]}','{lista['rh_pc'].iloc[i]}','{lista['unit_rh_pc'].iloc[i]}','" \
+                                                f"{lista['rh_pctc_sp'].iloc[i]}','{lista['rh_pctc'].iloc[i]}','{lista['unit_pctc'].iloc[i]}','" \
+                                                f"{lista['satur_pressure_sp'].iloc[i]}','{lista['satur_pressure'].iloc[i]}','{lista['unit_satur_pressure'].iloc[i]}','" \
+                                                f"{lista['chmbr_pressure'].iloc[i]}','{lista['unit_chmbr_pressure'].iloc[i]}','" \
+                                                f"{lista['satur_temp_sp'].iloc[i]}','{lista['satur_temp'].iloc[i]}','{lista['unit_satur_temp'].iloc[i]}','" \
+                                                f"{lista['chmbr_temp'].iloc[i]}','{lista['unit_chmbr_temp'].iloc[i]}','" \
+                                                f"{lista['flow_sp'].iloc[i]}','{lista['flow'].iloc[i]}','{lista['unit_flow'].iloc[i]}'){separator}"
+
+                print(comando_sql)
                 cursor.execute(comando_sql)
                 database.commit()
                 self.txt_user_help.value = "Datos enviados a MYSQL"
@@ -942,6 +982,10 @@ class GraficaIndependiente(UserControl):
     def __init__(self, page):
         super().__init__()
         self.page = page
+
+        self.float1 = 0
+        self.float2 = 0
+
         fig, self.ax = plt.subplots()
         self.datos_x = [0]
         self.datos_y = [0]
@@ -977,12 +1021,18 @@ class GraficaIndependiente(UserControl):
         return self.row_chart
 
     def graficar_en_tiempo_real(self, value1, value2):
+        try:
+            self.float1 = float(value1)
+            self.float2 = float(value2)
+        except:
+            print("No se puede convertir a float")
+
         self.contador = self.contador + 1
         if len(self.datos_x) >= 15:
             self.datos_x.pop(0)
             self.datos_y.pop(0)
         self.datos_x.append(self.contador)
-        self.datos_y.append(float(value1))
+        self.datos_y.append(self.float1)
         self.ax.clear()
         self.ax.plot(
             self.datos_x,
@@ -997,7 +1047,7 @@ class GraficaIndependiente(UserControl):
 
         self.ax.plot(
             [self.datos_x[0],self.datos_x[-1]],
-            [float(value2),float(value2)],
+            [self.float2,self.float2],
             linestyle="--",
             color="red",
             linewidth=5,

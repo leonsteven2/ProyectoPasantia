@@ -2,7 +2,7 @@ import serial
 import time
 # Abre el puerto serial
 thunder = serial.Serial(
-    port='COM8',  # Reemplaza 'COM1' con el puerto COM correcto en Windows
+    port='COM5',  # Reemplaza 'COM1' con el puerto COM correcto en Windows
     baudrate=9600,      # Velocidad de baudios
     bytesize=serial.EIGHTBITS, # 8 bits de datos
     parity=serial.PARITY_NONE, # Sin paridad
@@ -11,7 +11,7 @@ thunder = serial.Serial(
 )
 
 while True:
-    mensaje = "?\r\n"
+    mensaje = "?\r"
     thunder.write(mensaje.encode())
     #mensaje_desde_thunder = thunder.readline().decode().strip().split(",")
     #print(mensaje_desde_thunder[0])

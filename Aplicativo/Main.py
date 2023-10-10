@@ -316,6 +316,8 @@ class DeviceComunication(UserControl):
             ".csv",
             icon=icons.SAVE,
             disabled=True,
+            color="black",
+            bgcolor="white",
             on_click=lambda _: save_file_dialog.save_file(file_name="datos.csv", allowed_extensions=["csv"])
         )
         # Creamos el boton para resetear los datos del dataframe
@@ -342,7 +344,7 @@ class DeviceComunication(UserControl):
         self.btn_send_data_cloud = IconButton(
             icon=icons.CLOUD_UPLOAD,
             icon_color="white",
-            #disabled=True,
+            disabled=True,
             on_click=self.enviar_datos_a_mysql
         )
 
@@ -708,6 +710,51 @@ class DeviceComunication(UserControl):
 
         self.page.update(self)
 
+    def adquisicion_datos_thunder2(self):
+        while self.row_data_buttons.visible == True:
+            try:
+                mensaje = "?\r"  # "R1=30\r"
+                self.comunicacion_serial.write(mensaje.encode())
+                mensaje_desde_thunder = self.comunicacion_serial.readline().decode().strip().split(",")
+                print(mensaje_desde_thunder)
+                try:
+                    self.txt_RH_Pc_actual.value = str(mensaje_desde_thunder[0])
+                    self.txt_RH_PcTc_actual.value = str(mensaje_desde_thunder[1])
+                    self.txt_saturation_pressure_actual.value = str(mensaje_desde_thunder[2])
+                    self.txt_chamber_pressure_actual.value = str(mensaje_desde_thunder[3])
+                    self.txt_saturation_temp_actual.value = str(mensaje_desde_thunder[4])
+                    self.txt_chamber_temp_actual.value = str(mensaje_desde_thunder[5])
+                    self.txt_flow_rate_actual.value = str(mensaje_desde_thunder[6])
+                except:
+                    print("No se pudo enlistar")
+
+                try:
+                    if self.bool_registrar_datos:
+                        self.dataframe_indice = self.df_datos_thunder.shape[0] + 1
+                        self.df_datos_thunder.loc[self.dataframe_indice] = [self.txt_RH_Pc_actual.value,
+                                                                            self.txt_RH_PcTc_actual.value]
+                        self.txt_user_help.value = f"Datos registrados: {self.dataframe_indice}"
+                except Exception as e:
+                    print(f'Error: {e}')
+
+                # mensaje = "?SP\r"
+                # self.comunicacion_serial.write(mensaje.encode())
+                # mensaje_desde_thunder2 = self.comunicacion_serial.readline().decode().strip().split(",")
+                # self.txt_RH_Pc_setpoint.value = str(mensaje_desde_thunder2[0])
+                # self.txt_RH_PcTc_setpoint.value = str(mensaje_desde_thunder2[1])
+                # self.txt_saturation_pressure_setpoint.value = str(mensaje_desde_thunder2[2])
+                # self.txt_saturation_temp_setpoint.value = str(mensaje_desde_thunder2[3])
+                # self.txt_flow_rate_actual.value = str(mensaje_desde_thunder2[4])
+
+                self.page.update(self)
+                time.sleep(2)
+
+
+            except Exception as e:
+                self.conexion_serial_fallida(error=e)
+                break
+        self.comunicacion_serial.close()
+
     def adquisicion_datos_thunder(self):
         #self.setpoint_box.activar_boton_enviar()
         self.setpoint_box.btn_enviar_setpoint.disabled = False
@@ -750,6 +797,7 @@ class DeviceComunication(UserControl):
                         self.dataframe_indice = self.df_datos_thunder.shape[0] + 1
                         self.df_datos_thunder.loc[self.dataframe_indice] = [self.txt_RH_Pc_actual.value,self.txt_RH_PcTc_actual.value]
                         self.txt_user_help.value = f"Datos registrados: {self.dataframe_indice}"
+                        self.txt_user_help.color = "green"
                 except Exception as e:
                     print(f'Error: {e}')
 
@@ -835,6 +883,7 @@ class DeviceComunication(UserControl):
 
             self.btn_guardar_datos.disabled = True
             self.btn_reset_dataframe.disabled = True
+            self.btn_send_data_cloud.disabled = True
             print("bool en true")
         else:
             self.bool_registrar_datos = False
@@ -845,6 +894,7 @@ class DeviceComunication(UserControl):
             if self.dataframe_indice > 0:
                 self.btn_guardar_datos.disabled = False
                 self.btn_reset_dataframe.disabled = False
+                self.btn_send_data_cloud.disabled = False
         self.page.update(self)
 
     def resetear_dataframe(self, event):
@@ -884,7 +934,8 @@ class DeviceComunication(UserControl):
 
         except Exception as e:
             print(e)
-
+            self.txt_user_help.value = e
+            self.txt_user_help.color = "red"
 
 class GraficaIndependiente(UserControl):
     def __init__(self, page):

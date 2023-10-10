@@ -907,6 +907,7 @@ class DeviceComunication(UserControl):
         self.dataframe_indice = 0
         self.btn_guardar_datos.disabled = True
         self.btn_reset_dataframe.disabled = True
+        self.btn_send_data_cloud = True
         self.txt_user_help.value = "Datos registrados: 0"
         self.page.update(self)
 

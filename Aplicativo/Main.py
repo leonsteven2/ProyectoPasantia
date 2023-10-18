@@ -1,19 +1,54 @@
-import time
+from flet import (
+    app,
+    BoxShadow,
+    alignment,
+    ShadowBlurStyle,
+    border,
+    MainAxisAlignment,
+    FilePicker,
+    FilePickerResultEvent,
+    ProgressBar,
+    CircleAvatar,
+    Dropdown,
+    dropdown,
+    Icon,
+    Page,
+    NavigationRail,
+    NavigationRailDestination,
+    padding,
+    IconButton,
+    TextStyle,
+    Slider,
+    TextThemeStyle,
+    FontWeight,
+    TextAlign,
+    colors,
+    ScrollMode,
+    UserControl,
+    Container,
+    icons,
+    ElevatedButton,
+    DataTable,
+    DataColumn,
+    DataRow,
+    DataCell,
+    SafeArea,
+    Text,
+    Column,
+    TextField,
+    Row,
+    TextButton,
+)
 import pymysql
-import flet
-import credenciales
-from flet import AlertDialog, FilePicker, FilePickerResultEvent, ProgressBar, CircleAvatar, Dropdown, dropdown, Icon, Page, NavigationRail, NavigationRailDestination, padding, \
-    IconButton, TextStyle, Slider, TextThemeStyle, FontWeight, TextAlign, colors, TextCapitalization, UserControl, Container, icons, \
-    ElevatedButton, DataTable, DataColumn, DataRow, DataCell, SafeArea, Checkbox, Text, Column, TextField, Row, ImageFit, TextButton
 from time import sleep, strftime
 import serial
-import pandas as pd
+from pandas import DataFrame
 
-import matplotlib.pyplot as plt
-from flet.matplotlib_chart import MatplotlibChart
+from ModernLineChart import ModernLineChart
+import credenciales
 
 
-def CajaTextoConIcono(label, src_image, password, icon):
+def CajaTextoConIcono(label, src_image=None, password=None, icon=None, valor=None):
     icon_caja = Icon(
         name=icon,
         color=colors.WHITE,
@@ -21,6 +56,7 @@ def CajaTextoConIcono(label, src_image, password, icon):
     )
     txt_caja = TextField(
         label=label,
+        value=valor,
         expand=1,
         label_style=TextStyle(
             color=colors.WHITE,
@@ -31,7 +67,6 @@ def CajaTextoConIcono(label, src_image, password, icon):
             weight=FontWeight.BOLD,
         ),
         border_radius=15,
-        capitalization=TextCapitalization.CHARACTERS,
         password=password,
         can_reveal_password=password,
         border_color=colors.WHITE,
@@ -45,153 +80,164 @@ def SliderAndTextfield(label, suffix):
     textfield = TextField(label=label, expand=1, value="0", suffix_text=suffix)
     return textfield, slider
 
-
-class LoginInterface(UserControl):
+class Dashboard(UserControl):
     def __init__(self, page):
         super().__init__()
         self.page = page
-        self.cont_password_incorrect = 0
-        self.dlg_modal_send_email = AlertDialog(
-            modal=True,
-            title=Text("Send New Password"),
-            content=TextField(label="Email", suffix=Text("@gmail.com")),
-            actions=[
-                TextButton("Send", on_click=self.close_dlg),
-                TextButton("Close", on_click=self.close_dlg),
-            ],
-            actions_alignment=flet.MainAxisAlignment.END,
-            on_dismiss=lambda e: print("Modal dialog dismissed!")
-        )
+        # Creamos la gráfica
+        self.chart_thunder = ModernLineChart(max_x_range=15)
 
-    def build(self):
+        # Creamos la caja de setpoint
+        self.setpoint_box = SetpointBox(page=self.page)
 
-        self.row_interfaz = Row(
-            controls=[
-                Container(
-                    border_radius=30,
-                    expand=2,
-                    alignment=flet.alignment.center,
-                    image_src="Assets\InenPortada.png",
-                    image_fit=ImageFit.COVER,
-                ),
-                Container(
-                    border_radius=30,
-                    gradient=flet.LinearGradient(
-                        begin=flet.alignment.center,
-                        end=flet.alignment.bottom_center,
-                        colors=[colors.BLACK, "#08396a"]
-                    ),
-                    expand=1,
-                    content=self.Container_Login_Password(),
-                    alignment=flet.alignment.top_center
-                )
-            ],
-            spacing=3,
-        )
-        return self.row_interfaz
+        # Creamos las cajas de configuración serial para cada dispositivo
+        self.caja_configuracion_serial_thunder = DeviceComunication(titulo="Thunder Scientific", default_baud="9600",
+                                                               page=self.page, data="Thunder", grafica=self.chart_thunder, setpoint=self.setpoint_box)
+        self.caja_configuracion_serial_dew473 = DeviceComunication(titulo="Dew Point Mirror - 473", default_baud="9600",
+                                                              page=self.page, data="473")
+        self.caja_configuracion_serial_fluke = DeviceComunication(titulo="Fluke - DewK ", default_baud="9600",
+                                                             page=self.page, data="Fluke")
 
-    def Container_Login_Password(self):
-        self.caja_username = CajaTextoConIcono(
-            label="Username",
-            src_image=f'https://cdn-icons-png.flaticon.com/128/6172/6172285.png',
-            password=False,
-            icon=icons.PERSON,
-        )
-        self.caja_password = CajaTextoConIcono(
-            label="Password",
-            src_image=f'https://cdn-icons-png.flaticon.com/128/9397/9397489.png',
-            password=True,
-            icon=icons.SECURITY
-        )
-        self.lbl_user_or_password_incorrect = Text(
-            value="",
-            color=colors.RED,
-            size=17
-        )
-        container = Container(
-            width=375,
-            padding=20,
+        self.container_user_options = Container(
+            bgcolor="#2D2F31",
+            padding=padding.only(top=30, left=5, right=5, bottom=30),
             content=Column(
-                alignment=flet.MainAxisAlignment.CENTER,
-                spacing=20,
+                horizontal_alignment="center",
                 controls=[
-                    Text("Welcome Back",weight=FontWeight.BOLD, style=TextThemeStyle.HEADLINE_MEDIUM, color=colors.WHITE),
                     Row(
                         controls=[
-                            flet.Image(
-                                width=120,
-                                height=120,
-                                src=f"Assets/LogoPrincipal.svg"),
-                        ],
-                        alignment=flet.MainAxisAlignment.CENTER
-                    ),
-                    Row([self.caja_username]),
-                    Row([self.caja_password]),
-                    Row(
-                        alignment=flet.MainAxisAlignment.SPACE_BETWEEN,
-                        spacing=30,
-                        controls=[
-                            Checkbox(label="Remember Password", expand=1),
-                            TextButton(text="Forgot Password", width=140, on_click=self.open_dlg_modal)
-                        ]
-                    ),
-                    Row(controls=[self.lbl_user_or_password_incorrect], alignment=flet.MainAxisAlignment.CENTER),
-                    Row(
-                        controls=[
-                            ElevatedButton(
-                                content=Text(value="Login", weight=FontWeight.BOLD, style=TextThemeStyle.BODY_LARGE, color="red"),
-                                expand=1,
-                                color=colors.RED_ACCENT_700,
-                                bgcolor=colors.WHITE,
-                                style=flet.ButtonStyle(
-                                    overlay_color=colors.BLACK,
-                                    shape=flet.RoundedRectangleBorder(radius=10),
-                                ),
-                                on_click=self.user_and_password_validate,
+                            CircleAvatar(
+                                content=Icon(icons.PERSON, size=45),
+                                color=colors.BLUE_GREY_700,
+                                bgcolor=colors.BLUE_GREY_100,
+                                width=60,
+                                height=60
                             )
                         ],
+                        alignment=MainAxisAlignment.CENTER
+                    ),
+                    NavigationRail(
+                        selected_index=0,
+                        group_alignment=-0.8,
+                        bgcolor=colors.TRANSPARENT,
+                        expand=1,
+                        min_extended_width=170,
+                        min_width=80,
+                        extended=False,
+                        destinations=[
+                            NavigationRailDestination(
+                                icon=icons.DASHBOARD,
+                                label_content=Text("Panel", style=TextThemeStyle.BODY_LARGE, weight=FontWeight.BOLD),
+                            ),
+                            NavigationRailDestination(
+                                icon=icons.SETTINGS,
+                                label_content=Text("Settings", style=TextThemeStyle.BODY_LARGE, weight=FontWeight.BOLD),
+                            ),
+                        ],
+                        on_change=self.destination_changed
                     ),
                     Row(
-                        alignment=flet.MainAxisAlignment.SPACE_BETWEEN,
                         controls=[
-                            Text("Dont you have account?", expand=1.2, text_align=flet.TextAlign.CENTER),
-                            TextButton(text="Create account here", width=160)
-                        ]
-                    ),
+                            TextButton(
+                                content=Row(
+                                    controls=[
+                                        Icon(icons.LOGOUT_OUTLINED, color=colors.WHITE),
+                                        Text("Logout", weight=FontWeight.BOLD, style=TextThemeStyle.BODY_LARGE,
+                                             color=colors.WHITE)
+                                    ]
+                                ),
+                                on_click=self.return_to_login_page,
+                            )
+                        ],
+                        alignment=MainAxisAlignment.CENTER
+                    )
 
                 ],
-
-            ),
-            alignment=flet.alignment.top_center,
-
+            )
         )
-        return container
+        self.container_panel = Column(
+            spacing=5,
+            controls=[
+                Container(
+                    bgcolor=colors.BLACK87,
+                    expand=1,
+                    content=self.setpoint_box,
+                    padding=padding.all(10),
+                ),
+                Row(
+                    spacing=5,
+                    expand=3,
+                    controls=[
+                        Container(
+                            expand=1,
+                            content=self.caja_configuracion_serial_thunder
+                        ),
+                        Column(
+                            expand=2,
+                            spacing=5,
+                            controls=[
+                                Row(
+                                    spacing=5,
+                                    expand=8,
+                                    controls=[
+                                        Container(
+                                            expand=1,
+                                            content=self.caja_configuracion_serial_dew473,
+                                        ),
+                                        Container(
+                                            expand=1,
+                                            content=self.caja_configuracion_serial_fluke
+                                        ),
+                                    ]
+                                ),
+                                Container(
+                                    padding = padding.only(top=15, right=10),
+                                    expand=4,
+                                    #clip_behavior=ClipBehavior.HARD_EDGE,
+                                    bgcolor=colors.BLACK87,
+                                    content=self.chart_thunder
+                                )
+                            ]
+                        )
 
-    def user_and_password_validate(self, e):
-        self.caja_password.value = "123"
-        self.caja_username.value = "ADMIN"
-        if self.caja_password.value == "123" and self.caja_username.value == "ADMIN":
-            self.login_successful = True
-            self.page.go("/sensores")
-        else:
-            print("Datos de ingreso incorrectos")
-            self.cont_password_incorrect += 1
-            self.login_successful = False
-            self.lbl_user_or_password_incorrect.value = f"Incorrect user or password ({self.cont_password_incorrect})"
-            self.page.update(self)
+                    ],
 
-    def send_email_to_recovery_password(self):
+                )
+            ]
+        )
+
+        self.container_dashboard = Container(
+            expand=7,
+            content=self.container_panel
+        )
+
+        self.container_main = Container(
+            content=Row(
+                controls=[
+                    self.container_user_options,
+                    self.container_dashboard
+                ],
+                spacing=5,
+            )
+        )
+
+        # Creamos la caja de settings
+        self.cont_settings = Settings()
+
+    def build(self):
         pass
+        return self.container_main
 
-    def open_dlg_modal(self, e):
-        print("Entra a open dlg modal")
-        self.page.dialog = self.dlg_modal_send_email
-        self.dlg_modal_send_email.open = True
-        self.page.update()
+    def return_to_login_page(self, event):
+        self.page.go("/")
 
-    def close_dlg(self, e):
-        self.dlg_modal_send_email.open = False
-        self.page.update()
+    def destination_changed(self, e):
+        if e.control.selected_index == 0:
+            self.container_dashboard.content = self.container_panel
+
+        if e.control.selected_index == 1:
+            self.container_dashboard.content = self.cont_settings
+        self.page.update(self)
 
 
 class SetpointBox(UserControl):
@@ -309,7 +355,7 @@ class DeviceComunication(UserControl):
             bgcolor="green",
             color="white"
         )
-        # hide all dialogs in overlay
+        # Ocultamos los diálogos en el Overlay
         save_file_dialog = FilePicker(on_result=self.save_file_result)
         self.page.overlay.extend([save_file_dialog])
         self.btn_guardar_datos =  ElevatedButton(
@@ -320,26 +366,20 @@ class DeviceComunication(UserControl):
             bgcolor="white",
             on_click=lambda _: save_file_dialog.save_file(file_name="datos.csv", allowed_extensions=["csv"])
         )
-        # Creamos el boton para resetear los datos del dataframe
+        # Creamos el botón para resetear los datos del dataframe
         self.btn_reset_dataframe = IconButton(
             icon=icons.RESTART_ALT,
             icon_color="white",
             disabled=True,
             on_click=self.resetear_dataframe
         )
-        # self.btn_reset_dataframe = ElevatedButton(
-        #     "Reset",
-        #     disabled=True,
-        #     on_click=self.resetear_dataframe
-        # )
-        # Creamos el botón para salir de la conexión
+        # Creamos el botón para salir de la comunicación serial
         self.btn_exit = IconButton(
             bgcolor=colors.RED_400,
             icon=icons.EXIT_TO_APP_ROUNDED,
             icon_color="white",
             on_click=lambda _: self.conexion_serial_fallida("Proceso finalizado")
         )
-
         # Creamos el botón para enviar datos a la nube
         self.btn_send_data_cloud = IconButton(
             icon=icons.CLOUD_UPLOAD,
@@ -347,7 +387,6 @@ class DeviceComunication(UserControl):
             disabled=True,
             on_click=self.enviar_datos_a_mysql
         )
-
         # Creamos la fila que contiene al progress bar y los botones de guardado de datos
         self.row_data_buttons = Row(
             visible=False,
@@ -359,15 +398,12 @@ class DeviceComunication(UserControl):
                 self.btn_exit
             ]
         )
-
-
         # Creamos la etiqueta de ayuda al usuario para la comunicación serial
         self.txt_user_help = Text(
             value="Click para empezar comunicación serial",
             color="yellow",
             style=TextThemeStyle.LABEL_LARGE
         )
-
         # Creamos la fila que contiene el Dropdown de Baud y PortCOM
         self.drop_PORT = Dropdown(
                             expand=1,
@@ -416,11 +452,11 @@ class DeviceComunication(UserControl):
                 )
 
         # Creamos el título de la Caja de Setpoint
-        self.lbl_setpoint = Text("Setpoint!",
-                             style=TextThemeStyle.TITLE_LARGE,
-                             weight=FontWeight.BOLD
-                             )
-
+        self.lbl_setpoint = Text(
+            "Setpoint!",
+             style=TextThemeStyle.TITLE_LARGE,
+             weight=FontWeight.BOLD
+         )
         # Creamos las tablas para los diferentes equipos
         if self.data == "Thunder":
             self.txt_RH_Pc_setpoint = Text("0")
@@ -445,7 +481,7 @@ class DeviceComunication(UserControl):
             self.txt_flow_rate_actual = Text("0")
 
 
-            self.df_datos_thunder = pd.DataFrame(columns=[
+            self.df_datos_thunder = DataFrame(columns=[
                 'id_equipo', 'fecha', 'hora',
                 'rh_pc_sp', 'rh_pc', 'unit_rh_pc',
                 'rh_pctc_sp', 'rh_pctc', 'unit_pctc',
@@ -530,7 +566,7 @@ class DeviceComunication(UserControl):
             self.txt_DewPoint_473_actual = Text("0")
             self.txt_ExternalTemp_473_actual = Text("0")
 
-            self.df_datos_473 = pd.DataFrame(columns=['RH', 'DewPoint', 'Ext. Temp'])
+            self.df_datos_473 = DataFrame(columns=['RH', 'DewPoint', 'Ext. Temp'])
 
             self.data_table = DataTable(
                 expand=1,
@@ -572,7 +608,7 @@ class DeviceComunication(UserControl):
             self.txt_RH1_actual = Text("0")
             self.txt_RH2_actual = Text("0")
 
-            self.df_datos_fluke = pd.DataFrame(columns=['Temp1', 'RH1', 'Temp2', 'RH2'])
+            self.df_datos_fluke = DataFrame(columns=['Temp1', 'RH1', 'Temp2', 'RH2'])
 
             self.data_table = DataTable(
                 expand=1,
@@ -604,27 +640,26 @@ class DeviceComunication(UserControl):
                 column_spacing=30,
             )
 
-        # Creamos un indice general para los dataframe
+        # Creamos un índice general para los dataframe
         self.dataframe_indice = 0
 
         # Creamos la columna principal que contiene el título, configuracion serial y tablas
         self.col_main = Column(
             expand=1,
             spacing=15,
-            scroll=flet.ScrollMode.HIDDEN,
-            #alignment=flet.MainAxisAlignment.CENTER,
+            scroll=ScrollMode.HIDDEN,
             controls=[
                 Row(controls=[
                     Text(value=self.titulo, text_align=TextAlign.CENTER, weight=FontWeight.BOLD,
                          style=TextThemeStyle.TITLE_LARGE)],
-                    alignment=flet.MainAxisAlignment.CENTER
+                    alignment=MainAxisAlignment.CENTER
                 ),
                 self.row_baud_port,
                 Row(
                     controls=[
                         self.txt_user_help,
                     ],
-                    alignment=flet.MainAxisAlignment.CENTER,
+                    alignment=MainAxisAlignment.CENTER,
                 ),
                 self.progress_bar,
                 self.row_data_buttons,
@@ -632,12 +667,10 @@ class DeviceComunication(UserControl):
                     controls=[
                         self.data_table
                     ],
-                    alignment=flet.MainAxisAlignment.CENTER
+                    alignment=MainAxisAlignment.CENTER
                 )
             ]
         )
-
-
         # Creamos la fila que contiene toda la MainInterface
         self.row_main = Row(
             expand=1,
@@ -820,8 +853,11 @@ class DeviceComunication(UserControl):
                 except Exception as e:
                     print(f'Error: {e}')
 
+                # Graficar
                 try:
-                    self.grafica.graficar_en_tiempo_real(value1=self.txt_RH_Pc_actual.value, value2=self.txt_RH_Pc_setpoint.value)
+                    self.grafica.draw_points(y_value=self.txt_RH_Pc_actual.value)
+                    self.grafica.draw_points2(y_value=self.txt_RH_Pc_setpoint.value)
+
                 except Exception as e:
                     print(f"No se pudo graficar: {e}")
 
@@ -834,6 +870,7 @@ class DeviceComunication(UserControl):
 
     def adquisicion_datos_473(self):
         while True:
+            sleep(2)
             try:
                 mensaje = "RH?\r"
                 self.comunicacion_serial.write(mensaje.encode())
@@ -851,7 +888,7 @@ class DeviceComunication(UserControl):
                 self.txt_ExternalTemp_473_actual.value = str(mensaje_desde_473)
 
                 self.page.update(self)
-                time.sleep(2)
+
             except Exception as e:
                 self.conexion_serial_fallida(error=e)
                 break
@@ -865,9 +902,7 @@ class DeviceComunication(UserControl):
                 self.txt_temp2_actual.value = mensaje_desde_fluke[5].strip()
                 self.txt_RH1_actual.value = mensaje_desde_fluke[3].strip()
                 self.txt_RH2_actual.value = mensaje_desde_fluke[7].strip()
-                # mensaje_serial = self.comunicacion_serial.readline().decode().strip()
-                # self.txt_RH_Pc_actual.value = str(mensaje_serial)
-                # self.grafica.graficar_en_tiempo_real(event=None, value1=self.txt_RH_Pc_actual.value, value2=self.txt_RH_Pc_actual.value)
+
                 self.page.update(self)
             except Exception as e:
                 self.conexion_serial_fallida(error=e)
@@ -884,7 +919,6 @@ class DeviceComunication(UserControl):
             self.txt_user_help.value = f'No se pudo enviar Setpoint.'
             self.txt_user_help.color = "red"
         self.txt_user_help.update()
-
 
     def conexion_serial_fallida(self, error):
         self.comunicacion_serial.close()
@@ -978,356 +1012,81 @@ class DeviceComunication(UserControl):
             self.txt_user_help.value = e
             self.txt_user_help.color = "red"
 
-class GraficaIndependiente(UserControl):
-    def __init__(self, page):
+
+class Settings(UserControl):
+    def __init__(self):
         super().__init__()
-        self.page = page
 
-        self.float1 = 0
-        self.float2 = 0
+        self.txt_host = CajaTextoConIcono(label="HOST", icon=icons.HOME, valor="192.168.20.63")
+        self.txt_user = CajaTextoConIcono(label="USER", icon=icons.PERSON, valor="inenDB_ca")
+        self.txt_password = CajaTextoConIcono(label="PASSWORD", password=True, icon=icons.SECURITY, valor="INEN@4636server")
+        self.txt_database = CajaTextoConIcono(label="DATABASE", icon=icons.DATASET, valor="db_test_inen")
 
-        fig, self.ax = plt.subplots()
-        self.datos_x = [0]
-        self.datos_y = [0]
-        self.contador = 0
-        self.ax.plot(
-            self.datos_y,
-            linestyle="--",
-            color="green",
-            linewidth=5,
-            marker="o",
-            markersize=20,
-            label="Actual",
-        )
-        # plt.legend(fontsize=30)
-        # ax.set_ylabel("Valor", fontsize=30, color="red")
-        self.ax.tick_params(axis='both', labelsize=30, labelcolor="white")
-        self.ax.grid()
-        fig.set_figwidth(20)
-        # plt.xlabel("# Medición")
-        # plt.ylabel("Valor")
-        #self.plt_chart = MatplotlibChart(fig, transparent=True, isolated=True, expand=True)
-        self.plt_chart = MatplotlibChart(fig, transparent=True, isolated=True, expand=1)
-
-
-    def build(self):
-        self.row_chart = Row(
-            expand=1,
-            controls=[
-                self.plt_chart,
-                IconButton(icon=icons.START)
-            ]
-        )
-        return self.row_chart
-
-    def graficar_en_tiempo_real(self, value1, value2):
-        try:
-            self.float1 = float(value1)
-            self.float2 = float(value2)
-        except:
-            print("No se puede convertir a float")
-
-        self.contador = self.contador + 1
-        if len(self.datos_x) >= 15:
-            self.datos_x.pop(0)
-            self.datos_y.pop(0)
-        self.datos_x.append(self.contador)
-        self.datos_y.append(self.float1)
-        self.ax.clear()
-        self.ax.plot(
-            self.datos_x,
-            self.datos_y,
-            linestyle="--",
-            color="green",
-            linewidth=5,
-            marker="o",
-            markersize=20,
-            label="Actual",
-        )
-
-        self.ax.plot(
-            [self.datos_x[0],self.datos_x[-1]],
-            [self.float2,self.float2],
-            linestyle="--",
-            color="red",
-            linewidth=5,
-            label="Setpoint",
-        )
-
-        self.ax.tick_params(axis='both', labelsize=30, labelcolor="white")
-        self.ax.grid()
-        self.plt_chart.update()
-
-
-class Dashboard(UserControl):
-    def __init__(self, page):
-        super().__init__()
-        self.page = page
-        # Creamos la gráfica
-        self.row_chart_setpoint_and_actual = GraficaIndependiente(page=self.page)
-
-        # Creamos la caja de setpoint
-        self.setpoint_box = SetpointBox(page=self.page)
-
-        # Creamos las cajas de configuración serial para cada dispositivo
-        self.caja_configuracion_serial_thunder = DeviceComunication(titulo="Thunder Scientific", default_baud="9600",
-                                                               page=self.page, data="Thunder", grafica=self.row_chart_setpoint_and_actual, setpoint=self.setpoint_box)
-        self.caja_configuracion_serial_dew473 = DeviceComunication(titulo="Dew Point Mirror - 473", default_baud="9600",
-                                                              page=self.page, data="473")
-        self.caja_configuracion_serial_fluke = DeviceComunication(titulo="Fluke - DewK ", default_baud="9600",
-                                                             page=self.page, data="Fluke")
-
-        self.container_user_options = Container(
-            bgcolor="#2D2F31",
-            padding=padding.only(top=30, left=5, right=5, bottom=30),
+        self.cont_mysql_settings = Container(
+            width=300,
+            height=450,
+            padding=padding.all(25),
+            shadow=BoxShadow(
+                spread_radius=0,
+                blur_radius=10,
+                color="white",
+                blur_style=ShadowBlurStyle.OUTER,
+            ),
+            border_radius=25,
+            border=border.all(width=3, color="white"),
+            bgcolor=colors.with_opacity(opacity=0.75, color="black"),
             content=Column(
                 horizontal_alignment="center",
                 controls=[
-                    Row(
-                        controls=[
-                            CircleAvatar(
-                                content=Icon(icons.PERSON, size=45),
-                                color=colors.BLUE_GREY_700,
-                                bgcolor=colors.BLUE_GREY_100,
-                                width=60,
-                                height=60
-                            )
-                        ],
-                        alignment=flet.MainAxisAlignment.CENTER
-                    ),
-                    NavigationRail(
-                        selected_index=1,
-                        group_alignment=-0.9,
-                        bgcolor=colors.TRANSPARENT,
-                        expand=1,
-                        min_extended_width=170,
-                        min_width=80,
-                        extended=False,
-                        destinations=[
-                            NavigationRailDestination(
-                                # padding=padding.only(left=5),
-                                icon=icons.HOME,
-                                # icon=Icon(icons.HOME),
-                                label_content=Text("Home", style=TextThemeStyle.BODY_LARGE, weight=FontWeight.BOLD),
-                            ),
-                            NavigationRailDestination(
-                                # padding=padding.only(left=5),
-                                icon=icons.DASHBOARD,
-                                label_content=Text("Panel", style=TextThemeStyle.BODY_LARGE, weight=FontWeight.BOLD),
-                            ),
-                            NavigationRailDestination(
-                                # padding=padding.only(left=5),
-                                icon=icons.NEWSPAPER,
-                                label_content=Text("Report", style=TextThemeStyle.BODY_LARGE, weight=FontWeight.BOLD),
-                            ),
-                            NavigationRailDestination(
-                                # padding=padding.only(left=5),
-                                icon=icons.SETTINGS,
-                                label_content=Text("Settings", style=TextThemeStyle.BODY_LARGE, weight=FontWeight.BOLD),
-                            ),
-                        ],
-                        # on_change=lambda e: print("Selected destination:", e.control.selected_index)
-                        # on_change=self.destination_changed
-                    ),
-                    Row(
-                        controls=[
-                            TextButton(
-                                content=Row(
-                                    controls=[
-                                        Icon(icons.LOGOUT_OUTLINED, color=colors.WHITE),
-                                        Text("Logout", weight=FontWeight.BOLD, style=TextThemeStyle.BODY_LARGE,
-                                             color=colors.WHITE)
-                                    ]
-                                ),
-                                on_click=self.return_to_login_page,
-                            )
-                        ],
-                        alignment=flet.MainAxisAlignment.CENTER
-                    )
-
-                ],
-            )
-        )
-
-
-        self.container_dashboard = Container(
-            expand=7,
-            content=Column(
-                spacing=5,
-                controls=[
-                    Container(
-                        bgcolor=colors.BLACK87,
-                        expand=1,
-                        content=self.setpoint_box,
-                        padding=padding.all(10),
-                    ),
-                    Row(
-                        spacing=5,
-                        expand=3,
-                        controls=[
-                            Container(
-                                expand=1,
-                                content=self.caja_configuracion_serial_thunder
-                            ),
-                            Column(
-                                expand=2,
-                                spacing=5,
-                                controls=[
-                                    Row(
-                                        spacing=5,
-                                        expand=8,
-                                        controls=[
-                                            Container(
-                                                expand=1,
-                                                content=self.caja_configuracion_serial_dew473,
-                                            ),
-                                            Container(
-                                                expand=1,
-                                                content=self.caja_configuracion_serial_fluke
-                                            ),
-                                        ]
-                                    ),
-                                    Container(
-                                        padding = padding.only(right=10),
-                                        expand=4,
-                                        bgcolor=colors.BLACK87,
-                                        content=self.row_chart_setpoint_and_actual
-                                    )
-                                ]
-                            )
-
-                        ],
-
-                    )
+                    Text("MYSQL Database", color="yellow", weight="w700", style=TextThemeStyle.HEADLINE_SMALL),
+                    self.txt_host,
+                    self.txt_user,
+                    self.txt_password,
+                    self.txt_database,
+                    ElevatedButton("Guardar", color="white", on_click=self.save_mysql_configuration, icon=icons.CHECK, icon_color="white")
                 ]
             )
         )
-        self.container_main = Container(
-            content=Row(
-                controls=[
-                    self.container_user_options,
-                    self.container_dashboard
-                ],
-                spacing=5,
-            )
+        self.cont_main = Container(
+            #bgcolor="blue",
+            alignment=alignment.center,
+            expand=True,
+            content=self.cont_mysql_settings,
         )
 
     def build(self):
-        pass
-        return self.container_main
+        return self.cont_main
 
-    def return_to_login_page(self, event):
-        self.page.go("/")
+    def save_mysql_configuration(self, e):
+        credenciales.host = self.txt_host.controls[1].value
+        credenciales.user = self.txt_user.controls[1].value
+        credenciales.password = self.txt_password.controls[1].value
+        credenciales.database = self.txt_database.controls[1].value
+        e.control.icon_color = "green"
+        e.control.color = "green"
+        e.control.update()
+        sleep(1)
+        e.control.icon_color = "white"
+        e.control.color = "white"
+        e.control.update()
 
-
-class CustomersPage(UserControl):
-    def __init__(self, page):
-        super().__init__()
-        self.page = page
-        self.row_main = Row(
-            controls=[
-                ElevatedButton("asd", on_click=self.button_clicked),
-            ],
-        )
-        self.container = Container(
-            bgcolor=colors.BLACK,
-            content=self.row_main,
-            alignment=flet.alignment.center,
-        )
-
-    def build(self):
-        pass
-        return self.container
-
-    def button_clicked(self, event):
-        print("Presionado")
-        self.row_main.controls.append(Text("Aquí estoy"))
-        self.page.update(self)
-
-
-class HomePage(UserControl):
-    def __init__(self, page, texto):
-        super().__init__()
-        self.page = page
-        self.texto = texto
-        self.row_main = Row(
-            controls=[
-                ElevatedButton("asd", on_click=self.button_clicked),
-            ]
-        )
-        self.container = Container(
-            bgcolor=colors.BLUE,
-            content=self.row_main,
-            alignment=flet.alignment.center,
-        )
-
-    def build(self):
-        pass
-        return self.container
-
-    def button_clicked(self, event):
-        print("Presionado")
-        self.row_main.controls.append(Text("Aquí estoy"))
-        self.page.update(self)
 
 if __name__ == "__main__":
     def main(page: Page):
-        page.title = "Login Interface"
-        #page.theme = flet.theme.Theme(color_scheme_seed="pink")
-        theme = flet.Theme()
-        theme.page_transitions.windows = flet.PageTransitionTheme.CUPERTINO
-        page.theme = theme
+        page.title = "Laboratorio de Humedad"
         page.window_left = 1000
         page.window_frameless = True
         page.window_maximized = True
         page.window_min_width = 1200
         page.window_min_height = 700
 
-        def route_change(route):
-            page.views.clear()
-            print("Cambio de ruta")
-
-            if page.route == "/":
-                page.views.append(
-                    flet.View(
-                        "/",
-                        [
-                            SafeArea(
-                                content=login_interface,
-                                expand=True,
-                            )
-                        ]
-
-                    )
-                )
-            if page.route == "/sensores": #and login_interface.login_successful:
-                page.views.append(
-                    flet.View(
-                        "/sensores",
-                        [
-                            SafeArea(
-                                content=dashboard_interface,
-                                expand=True,
-                            )
-                        ]
-                    )
-                )
-            page.update()
-
-        page.fonts = {
-            "Kanit": "https://raw.githubusercontent.com/google/fonts/master/ofl/kanit/Kanit-Bold.ttf",
-            "Oswald Bold": "https://github.com/googlefonts/OswaldFont/raw/main/fonts/ttf/Oswald-Bold.ttf",
-            "Oswald Medium": "https://github.com/googlefonts/OswaldFont/blob/main/fonts/ttf/Oswald-Medium.ttf",
-        }
-        #page.theme = Theme(font_family="Oswald Bold")
-        def save_file_result(e: FilePickerResultEvent):
-            save_file_path = e.path if e.path else "Cancelled!"
-            print(save_file_path)
-
         dashboard_interface = Dashboard(page)
-        login_interface = LoginInterface(page)
-        page.on_route_change = route_change
-        # page.go(page.route)
-        page.go("/sensores")
 
-    flet.app(target=main, assets_dir="assets")  # view=flet.WEB_BROWSER
+        page.add(
+            SafeArea(
+                content=dashboard_interface,
+                expand=True,
+            )
+        )
+
+    app(target=main, assets_dir="assets")

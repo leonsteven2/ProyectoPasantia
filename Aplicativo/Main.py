@@ -338,6 +338,7 @@ class DeviceComunication(UserControl):
         self.data = data
         self.grafica = grafica
         self.setpoint_box = setpoint
+        self.tiempo_muestreo = 2
 
         # Creamos la barra de progreso para la comunicación serial
         self.progress_bar = ProgressBar(
@@ -400,10 +401,13 @@ class DeviceComunication(UserControl):
         )
         # Creamos la etiqueta de ayuda al usuario para la comunicación serial
         self.txt_user_help = Text(
-            value="Click para empezar comunicación serial",
+            value="Digite el tiempo de muestreo:",
             color="yellow",
-            style=TextThemeStyle.LABEL_LARGE
+            style=TextThemeStyle.LABEL_LARGE,
         )
+        # Creamos el campo de texto para introducir el tiempo
+        self.txt_time_period = TextField(value=2, suffix_text="seg", expand=1)
+
         # Creamos la fila que contiene el Dropdown de Baud y PortCOM
         self.drop_PORT = Dropdown(
                             expand=1,
@@ -566,7 +570,7 @@ class DeviceComunication(UserControl):
             self.txt_DewPoint_473_actual = Text("0")
             self.txt_ExternalTemp_473_actual = Text("0")
 
-            self.df_datos_473 = DataFrame(columns=['RH', 'DewPoint', 'Ext. Temp'])
+            self.df_datos_473 = DataFrame(columns=['hora','fecha','RH', 'DewPoint', 'Ext. Temp'])
 
             self.data_table = DataTable(
                 expand=1,
@@ -608,7 +612,7 @@ class DeviceComunication(UserControl):
             self.txt_RH1_actual = Text("0")
             self.txt_RH2_actual = Text("0")
 
-            self.df_datos_fluke = DataFrame(columns=['Temp1', 'RH1', 'Temp2', 'RH2'])
+            self.df_datos_fluke = DataFrame(columns=['hora','fecha','Temp1', 'RH1', 'Temp2', 'RH2'])
 
             self.data_table = DataTable(
                 expand=1,
@@ -658,6 +662,7 @@ class DeviceComunication(UserControl):
                 Row(
                     controls=[
                         self.txt_user_help,
+                        self.txt_time_period
                     ],
                     alignment=MainAxisAlignment.CENTER,
                 ),
@@ -703,14 +708,24 @@ class DeviceComunication(UserControl):
 
     def establecer_conexion_serial(self, event):
         conexion_satisfactoria = False
-        # Cambiamos el color
-        if self.drop_PORT.value != None:
+        bool_tiempo_muestreo = False
+        # Verificamos si el tiempo de muestreo fue digitado correctamente
+        try:
+            self.tiempo_muestreo = int(self.txt_time_period.value)
+            bool_tiempo_muestreo = True
+        except:
+            bool_tiempo_muestreo = False
+
+
+        # Validamos que exista un puerto COM
+        if self.drop_PORT.value != None and bool_tiempo_muestreo:
             self.progress_bar.color = "amber"
             self.progress_bar.value = None
             self.txt_user_help.value = f"Conectando por {self.drop_PORT.value} ..."
             self.txt_user_help.color = None
+            self.txt_time_period.visible = False
             self.page.update(self)
-            sleep(2)
+            sleep(1)
             try:
                 self.comunicacion_serial = serial.Serial(
                     str(self.drop_PORT.value),
@@ -762,7 +777,7 @@ class DeviceComunication(UserControl):
         self.setpoint_box.btn_enviar_setpoint.disabled = False
         self.setpoint_box.btn_enviar_setpoint.update()
         while True:
-            sleep(2)
+            sleep(self.tiempo_muestreo)
             try:
                 if self.setpoint_box.bool_enviar_datos == False:
                     # Enviamos el mensaje para recibir los valores actuales
@@ -804,27 +819,27 @@ class DeviceComunication(UserControl):
                     if float(self.setpoint_box.txt_RH_Pc.value) > 1:
                         mensaje = f"R1={self.setpoint_box.txt_RH_Pc.value}\r"
                         self.enviar_setpoint(mensaje=mensaje)
-                    sleep(2)
+                    sleep(1)
 
                     if float(self.setpoint_box.txt_RH_PcTc.value) > 1:
                         mensaje = f"R2={self.setpoint_box.txt_RH_PcTc.value}\r"
                         self.enviar_setpoint(mensaje=mensaje)
-                    sleep(2)
+                    sleep(1)
 
                     if float(self.setpoint_box.txt_sat_pressure.value) > 1:
                         mensaje = f"PS={self.setpoint_box.txt_sat_pressure.value}\r"
                         self.enviar_setpoint(mensaje=mensaje)
-                    sleep(2)
+                    sleep(1)
 
                     if float(self.setpoint_box.txt_sat_temp.value) > 1:
                         mensaje = f"TS={self.setpoint_box.txt_sat_temp.value}\r"
                         self.enviar_setpoint(mensaje=mensaje)
-                    sleep(2)
+                    sleep(1)
 
                     if float(self.setpoint_box.txt_flow_rate.value) > 1:
                         mensaje = f"FS={self.setpoint_box.txt_flow_rate.value}\r"
                         self.enviar_setpoint(mensaje=mensaje)
-                    sleep(2)
+                    sleep(1)
 
                     self.setpoint_box.bool_enviar_datos = False
 
@@ -870,24 +885,52 @@ class DeviceComunication(UserControl):
 
     def adquisicion_datos_473(self):
         while True:
-            sleep(2)
+            sleep(self.tiempo_muestreo)
             try:
                 mensaje = "RH?\r"
                 self.comunicacion_serial.write(mensaje.encode())
-                mensaje_desde_473 = self.comunicacion_serial.readline().decode().strip()
-                self.txt_RH_473_actual.value = str(mensaje_desde_473)
+                mensaje_desde_473 = self.comunicacion_serial.readline().decode()
+                try:
+                    self.txt_RH_473_actual.value = str(mensaje_desde_473).strip()
+                except:
+                    pass
 
                 mensaje = "DP?\r"
                 self.comunicacion_serial.write(mensaje.encode())
-                mensaje_desde_473 = self.comunicacion_serial.readline().decode().strip()
-                self.txt_DewPoint_473_actual.value = str(mensaje_desde_473)
+                mensaje_desde_473 = self.comunicacion_serial.readline().decode()
+                try:
+                    self.txt_DewPoint_473_actual.value = str(mensaje_desde_473).strip()
+                except:
+                    pass
 
                 mensaje = "Tx?\r"
                 self.comunicacion_serial.write(mensaje.encode())
-                mensaje_desde_473 = self.comunicacion_serial.readline().decode().strip()
-                self.txt_ExternalTemp_473_actual.value = str(mensaje_desde_473)
+                mensaje_desde_473 = self.comunicacion_serial.readline().decode()
+                try:
+                    self.txt_ExternalTemp_473_actual.value = str(mensaje_desde_473).strip()
+                except:
+                    pass
 
                 self.page.update(self)
+
+                # Guardamos en el dataframe si se presiono el boton registrar
+                try:
+                    if self.bool_registrar_datos:
+                        hora = strftime("%H:%M:%S")
+                        fecha = strftime("20%y-%m-%d")
+                        self.dataframe_indice = self.df_datos_473.shape[0] + 1
+                        self.df_datos_473.loc[self.dataframe_indice] = [
+                            hora,
+                            fecha,
+                            self.txt_RH_473_actual.value,
+                            self.txt_DewPoint_473_actual.value,
+                            self.txt_ExternalTemp_473_actual.value
+                        ]
+                        self.txt_user_help.value = f"Datos registrados: {self.dataframe_indice}"
+                        self.txt_user_help.color = "green"
+                        self.txt_user_help.update()
+                except:
+                    pass
 
             except Exception as e:
                 self.conexion_serial_fallida(error=e)
@@ -895,15 +938,46 @@ class DeviceComunication(UserControl):
 
     def adquisicion_datos_fluke(self):
         while True:
+            sleep(self.tiempo_muestreo)
             try:
+                mensaje = "READ? \r"
+                self.comunicacion_serial.write(mensaje.encode())
                 mensaje_desde_fluke = self.comunicacion_serial.readline().decode()
-                mensaje_desde_fluke = mensaje_desde_fluke.split(",")
-                self.txt_temp1_actual.value = mensaje_desde_fluke[1].strip()
-                self.txt_temp2_actual.value = mensaje_desde_fluke[5].strip()
-                self.txt_RH1_actual.value = mensaje_desde_fluke[3].strip()
-                self.txt_RH2_actual.value = mensaje_desde_fluke[7].strip()
+
+                try:
+                    mensaje_desde_fluke = mensaje_desde_fluke.strip().split(",")
+                    if mensaje_desde_fluke[0] == "READ?":
+                        continue
+                    self.txt_temp1_actual.value = mensaje_desde_fluke[0].strip()
+                    self.txt_temp2_actual.value = mensaje_desde_fluke[1].strip()
+                    self.txt_RH1_actual.value = mensaje_desde_fluke[2].strip()
+                    self.txt_RH2_actual.value = mensaje_desde_fluke[3].strip()
+                except Exception as e:
+                    print(f"Error en split o strip de fluke: {e}")
 
                 self.page.update(self)
+
+                # Guardamos datos
+                # Guardamos en el dataframe si se presiono el boton registrar
+                try:
+                    if self.bool_registrar_datos:
+                        hora = strftime("%H:%M:%S")
+                        fecha = strftime("20%y-%m-%d")
+                        self.dataframe_indice = self.df_datos_fluke.shape[0] + 1
+                        self.df_datos_fluke.loc[self.dataframe_indice] = [
+                            hora,
+                            fecha,
+                            mensaje_desde_fluke[0].strip(),
+                            mensaje_desde_fluke[1].strip(),
+                            mensaje_desde_fluke[2].strip(),
+                            mensaje_desde_fluke[3].strip(),
+                        ]
+                        self.txt_user_help.value = f"Datos registrados: {self.dataframe_indice}"
+                        self.txt_user_help.color = "green"
+                        self.txt_user_help.update()
+                except:
+                    pass
+
             except Exception as e:
                 self.conexion_serial_fallida(error=e)
                 break
@@ -924,6 +998,7 @@ class DeviceComunication(UserControl):
         self.comunicacion_serial.close()
         self.row_data_buttons.visible = False
         self.row_baud_port.visible = True
+        self.txt_time_period.visible = True
         list_error = str(error).split("(")
         self.progress_bar.visible = True
         self.progress_bar.value = 1

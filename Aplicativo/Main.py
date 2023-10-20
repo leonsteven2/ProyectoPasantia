@@ -43,6 +43,7 @@ import pymysql
 from time import sleep, strftime
 import serial
 from pandas import DataFrame
+from xlwings import apps
 
 from ModernLineChart import ModernLineChart
 import credenciales
@@ -222,7 +223,7 @@ class Dashboard(UserControl):
         )
 
         # Creamos la caja de settings
-        self.cont_settings = Settings()
+        self.cont_settings = Settings(self.page)
 
     def build(self):
         pass
@@ -339,6 +340,7 @@ class DeviceComunication(UserControl):
         self.grafica = grafica
         self.setpoint_box = setpoint
         self.tiempo_muestreo = 2
+        self.contador_excel = 0
 
         # Creamos la barra de progreso para la comunicación serial
         self.progress_bar = ProgressBar(
@@ -916,6 +918,7 @@ class DeviceComunication(UserControl):
                 # Guardamos en el dataframe si se presiono el boton registrar
                 try:
                     if self.bool_registrar_datos:
+                        # Registro de datos en el dataframe
                         hora = strftime("%H:%M:%S")
                         fecha = strftime("20%y-%m-%d")
                         self.dataframe_indice = self.df_datos_473.shape[0] + 1
@@ -926,7 +929,18 @@ class DeviceComunication(UserControl):
                             self.txt_DewPoint_473_actual.value,
                             self.txt_ExternalTemp_473_actual.value
                         ]
-                        self.txt_user_help.value = f"Datos registrados: {self.dataframe_indice}"
+                        # Registro de datos en el Excel
+                        app = apps.active
+                        if app:
+                            # Celda seleccionada
+                            celda_activa = app.selection
+                            app.selection.sheet.range(celda_activa.row + self.contador_excel, celda_activa.column).value = self.txt_RH_473_actual.value
+                            app.selection.sheet.range(celda_activa.row + self.contador_excel, celda_activa.column + 1).value = self.txt_DewPoint_473_actual.value
+                            app.selection.sheet.range(celda_activa.row + self.contador_excel, celda_activa.column + 2).value = self.txt_ExternalTemp_473_actual.value
+                            self.contador_excel += 1
+
+                        # Se muestra el registro
+                        self.txt_user_help.value = f"Registro: {self.dataframe_indice} - Excel: {self.contador_excel}"
                         self.txt_user_help.color = "green"
                         self.txt_user_help.update()
                 except:
@@ -1011,6 +1025,7 @@ class DeviceComunication(UserControl):
         self.txt_user_help.color = "red"
 
         self.btn_iniciar_registro_datos.text = "Registrar"
+        self.btn_iniciar_registro_datos.bgcolor = "green"
         self.bool_registrar_datos = False
 
         self.page.update(self)
@@ -1018,6 +1033,7 @@ class DeviceComunication(UserControl):
     def registrar_datos(self):
         if self.btn_iniciar_registro_datos.text == "Registrar":
             self.bool_registrar_datos = True
+            self.contador_excel = 0
 
             self.btn_iniciar_registro_datos.text = "Detener"
             self.btn_iniciar_registro_datos.bgcolor = "red"
@@ -1089,9 +1105,11 @@ class DeviceComunication(UserControl):
 
 
 class Settings(UserControl):
-    def __init__(self):
+    def __init__(self, page):
         super().__init__()
+        self.page = page
 
+        # Caja de MYSQL Database
         self.txt_host = CajaTextoConIcono(label="HOST", icon=icons.HOME, valor="192.168.20.63")
         self.txt_user = CajaTextoConIcono(label="USER", icon=icons.PERSON, valor="inenDB_ca")
         self.txt_password = CajaTextoConIcono(label="PASSWORD", password=True, icon=icons.SECURITY, valor="INEN@4636server")
@@ -1103,7 +1121,7 @@ class Settings(UserControl):
             padding=padding.all(25),
             shadow=BoxShadow(
                 spread_radius=0,
-                blur_radius=10,
+                blur_radius=5,
                 color="white",
                 blur_style=ShadowBlurStyle.OUTER,
             ),
@@ -1122,11 +1140,20 @@ class Settings(UserControl):
                 ]
             )
         )
+
+        # Contenedor principal
         self.cont_main = Container(
             #bgcolor="blue",
             alignment=alignment.center,
             expand=True,
-            content=self.cont_mysql_settings,
+            content=Row(
+                alignment="center",
+                expand=1,
+                spacing=25,
+                controls=[
+                    self.cont_mysql_settings,
+                ]
+            ),
         )
 
     def build(self):

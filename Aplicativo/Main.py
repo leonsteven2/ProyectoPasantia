@@ -44,6 +44,7 @@ from time import sleep, strftime
 import serial
 from pandas import DataFrame
 from xlwings import apps
+import keyboard
 
 from ModernLineChart import ModernLineChart
 import credenciales
@@ -340,7 +341,15 @@ class DeviceComunication(UserControl):
         self.grafica = grafica
         self.setpoint_box = setpoint
         self.tiempo_muestreo = 2
+
+
+        # Variables para exportar a excel en tiempo real
         self.contador_excel = 0
+        self.bool_exportar_excel = False
+        self.actual_row_excel = None
+        self.actual_column_excel = None
+        self.actual_sheet_excel = None
+        keyboard.hook(self.detect_keyboard_command)
 
         # Creamos la barra de progreso para la comunicación serial
         self.progress_bar = ProgressBar(
@@ -486,17 +495,18 @@ class DeviceComunication(UserControl):
             self.txt_flow_rate_setpoint = Text("0")
             self.txt_flow_rate_actual = Text("0")
 
-
-            self.df_datos_thunder = DataFrame(columns=[
-                'id_equipo', 'fecha', 'hora',
+            self.datos_mysql_thunder = [
+                'fecha', 'hora',
                 'rh_pc_sp', 'rh_pc', 'unit_rh_pc',
                 'rh_pctc_sp', 'rh_pctc', 'unit_pctc',
                 'satur_pressure_sp', 'satur_pressure', 'unit_satur_pressure',
                 'chmbr_pressure', 'unit_chmbr_pressure',
                 'satur_temp_sp', 'satur_temp', 'unit_satur_temp',
                 'chmbr_temp', 'unit_chmbr_temp',
-                'flow_sp', 'flow', 'unit_flow'
-            ])
+                'flow_sp', 'flow', 'unit_flow',
+                'id_equipo']
+
+            self.df_datos_thunder = DataFrame(columns=self.datos_mysql_thunder)
 
             self.data_table = DataTable(
                 expand=1,
@@ -568,6 +578,10 @@ class DeviceComunication(UserControl):
             )
 
         if self.data == "473":
+            # Escondemos boton de mysql
+            self.btn_send_data_cloud.visible = False
+
+            # Variables internas
             self.txt_RH_473_actual = Text("0")
             self.txt_DewPoint_473_actual = Text("0")
             self.txt_ExternalTemp_473_actual = Text("0")
@@ -608,6 +622,10 @@ class DeviceComunication(UserControl):
             )
 
         if self.data == "Fluke":
+            # Escondemos boton de mysql
+            self.btn_send_data_cloud.visible = False
+
+            # Variables internas
             self.txt_temp1_actual = Text("0")
             self.txt_temp2_actual = Text("0")
 
@@ -854,16 +872,14 @@ class DeviceComunication(UserControl):
                         fecha = strftime("20%y-%m-%d")
                         self.dataframe_indice = self.df_datos_thunder.shape[0] + 1
                         self.df_datos_thunder.loc[self.dataframe_indice] = [
-                            "1207906",fecha, hora,
+                            fecha, hora,
                             self.txt_RH_Pc_setpoint.value, self.txt_RH_Pc_actual.value, "%HR",
                             self.txt_RH_PcTc_setpoint.value, self.txt_RH_PcTc_actual.value, "%HR",
                             self.txt_saturation_pressure_setpoint.value, self.txt_saturation_pressure_actual.value, "psi",
                             self.txt_chamber_pressure_actual.value, "psi",
                             self.txt_saturation_temp_setpoint.value, self.txt_saturation_temp_actual.value, "C",
                             self.txt_chamber_temp_actual.value, "C",
-                            self.txt_flow_rate_setpoint.value, self.txt_flow_rate_actual.value, "l/m"
-
-
+                            self.txt_flow_rate_setpoint.value, self.txt_flow_rate_actual.value, "l/m", "L0038"
                         ]
                         self.txt_user_help.value = f"Datos registrados: {self.dataframe_indice}"
                         self.txt_user_help.color = "green"
@@ -929,22 +945,34 @@ class DeviceComunication(UserControl):
                             self.txt_DewPoint_473_actual.value,
                             self.txt_ExternalTemp_473_actual.value
                         ]
-                        # Registro de datos en el Excel
-                        app = apps.active
-                        if app:
-                            # Celda seleccionada
-                            celda_activa = app.selection
-                            app.selection.sheet.range(celda_activa.row + self.contador_excel, celda_activa.column).value = self.txt_RH_473_actual.value
-                            app.selection.sheet.range(celda_activa.row + self.contador_excel, celda_activa.column + 1).value = self.txt_DewPoint_473_actual.value
-                            app.selection.sheet.range(celda_activa.row + self.contador_excel, celda_activa.column + 2).value = self.txt_ExternalTemp_473_actual.value
-                            self.contador_excel += 1
-
-                        # Se muestra el registro
-                        self.txt_user_help.value = f"Registro: {self.dataframe_indice} - Excel: {self.contador_excel}"
-                        self.txt_user_help.color = "green"
-                        self.txt_user_help.update()
                 except:
                     pass
+
+                # Registro de datos en el Excel
+                try:
+                    if self.bool_exportar_excel:
+                        app = apps.active
+                        if app:
+                            if self.contador_excel == 0:
+                                self.actual_row_excel = app.selection.row
+                                self.actual_column_excel = app.selection.column
+                                self.actual_sheet_excel = app.selection.sheet
+                        self.actual_sheet_excel.range(self.actual_row_excel + self.contador_excel,
+                                                  self.actual_column_excel).value = self.txt_RH_473_actual.value
+                        # self.actual_sheet_excel.range(celda_activa.row + self.contador_excel,
+                        #                           celda_activa.column + 1).value = self.txt_DewPoint_473_actual.value
+                        # self.actual_sheet_excel.range(celda_activa.row + self.contador_excel,
+                        #                           celda_activa.column + 2).value = self.txt_ExternalTemp_473_actual.value
+
+                        self.contador_excel += 1
+
+                except Exception as e:
+                    print(e)
+
+                # Se muestra el registro
+                self.txt_user_help.value = f"Registro: {self.dataframe_indice} - Excel: {self.contador_excel}"
+                self.txt_user_help.color = "green"
+                self.txt_user_help.update()
 
             except Exception as e:
                 self.conexion_serial_fallida(error=e)
@@ -1028,12 +1056,15 @@ class DeviceComunication(UserControl):
         self.btn_iniciar_registro_datos.bgcolor = "green"
         self.bool_registrar_datos = False
 
+        self.bool_exportar_excel = False
+        self.contador_excel = 0
+
         self.page.update(self)
 
     def registrar_datos(self):
         if self.btn_iniciar_registro_datos.text == "Registrar":
             self.bool_registrar_datos = True
-            self.contador_excel = 0
+
 
             self.btn_iniciar_registro_datos.text = "Detener"
             self.btn_iniciar_registro_datos.bgcolor = "red"
@@ -1079,22 +1110,30 @@ class DeviceComunication(UserControl):
             cursor = database.cursor()
 
             if self.data == "Thunder":
-                lista = self.df_datos_thunder
-                comando_sql = "insert into lab_humedad values "
-                for i in range(0, len(lista)):
-                    separator = "," if i < (len(lista) - 1) else ";"
-                    comando_sql = comando_sql + f"\n('{lista['id_equipo'].iloc[i]}','{lista['fecha'].iloc[i]}','{lista['hora'].iloc[i]}','" \
-                                                f"{lista['rh_pc_sp'].iloc[i]}','{lista['rh_pc'].iloc[i]}','{lista['unit_rh_pc'].iloc[i]}','" \
-                                                f"{lista['rh_pctc_sp'].iloc[i]}','{lista['rh_pctc'].iloc[i]}','{lista['unit_pctc'].iloc[i]}','" \
-                                                f"{lista['satur_pressure_sp'].iloc[i]}','{lista['satur_pressure'].iloc[i]}','{lista['unit_satur_pressure'].iloc[i]}','" \
-                                                f"{lista['chmbr_pressure'].iloc[i]}','{lista['unit_chmbr_pressure'].iloc[i]}','" \
-                                                f"{lista['satur_temp_sp'].iloc[i]}','{lista['satur_temp'].iloc[i]}','{lista['unit_satur_temp'].iloc[i]}','" \
-                                                f"{lista['chmbr_temp'].iloc[i]}','{lista['unit_chmbr_temp'].iloc[i]}','" \
-                                                f"{lista['flow_sp'].iloc[i]}','{lista['flow'].iloc[i]}','{lista['unit_flow'].iloc[i]}'){separator}"
+                table_name = "lab_humedad"
 
-                print(comando_sql)
+                df = self.df_datos_thunder
+
+                comando_mysql_inicio = f"INSERT INTO {table_name}\n("
+                for dato in self.datos_mysql_thunder:
+                    comando_mysql_inicio += dato + ","
+                comando_mysql_inicio = comando_mysql_inicio[:-1] + ")\n"
+
+                comando_mysql_final = f"VALUES\n"
+                for i in range(0, len(df)):
+                    comando_mysql_final = comando_mysql_final + "("
+                    for dato in self.datos_mysql_thunder:
+                        comando_mysql_final += f"'{df[dato].iloc[i]}'" + ","
+                    comando_mysql_final = comando_mysql_final[:-1] + ""
+                    comando_mysql_final += "),\n"
+
+                comando_mysql_final = comando_mysql_final[:-2] + ";"
+
+                comando_sql = comando_mysql_inicio + comando_mysql_final
+
                 cursor.execute(comando_sql)
                 database.commit()
+
                 self.txt_user_help.value = "Datos enviados a MYSQL"
                 self.txt_user_help.update()
 
@@ -1102,6 +1141,12 @@ class DeviceComunication(UserControl):
             print(e)
             self.txt_user_help.value = e
             self.txt_user_help.color = "red"
+
+    def detect_keyboard_command(self, e):
+        # print(e)
+        if e.event_type == keyboard.KEY_DOWN and keyboard.is_pressed('ctrl') and keyboard.is_pressed('mayusculas') and keyboard.is_pressed('A'):
+            self.bool_exportar_excel = True if self.bool_exportar_excel == False else False
+            self.contador_excel = 0 if self.bool_exportar_excel == False else self.contador_excel
 
 
 class Settings(UserControl):

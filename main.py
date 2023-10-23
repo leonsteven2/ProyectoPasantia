@@ -1,101 +1,38 @@
-from time import sleep
+import pandas as pd
+table_name = "lab_humedad"
 
-import flet
-from flet import (
-    AppBar,
-    ElevatedButton,
-    Icon,
-    IconButton,
-    Page,
-    PopupMenuButton,
-    PopupMenuItem,
-    Row,
-    Text,
-    colors,
-    icons,
-    theme,
-)
+df = pd.read_csv("datosPrueba.csv")
 
-LIGHT_SEED_COLOR = colors.DEEP_ORANGE
-DARK_SEED_COLOR = colors.INDIGO
+datos_mysql_thunder = [
+    'fecha', 'hora',
+    'rh_pc_sp', 'rh_pc', 'unit_rh_pc',
+    'rh_pctc_sp', 'rh_pctc', 'unit_pctc',
+    'satur_pressure_sp', 'satur_pressure', 'unit_satur_pressure',
+    'chmbr_pressure', 'unit_chmbr_pressure',
+    'satur_temp_sp', 'satur_temp', 'unit_satur_temp',
+    'chmbr_temp', 'unit_chmbr_temp',
+    'flow_sp', 'flow', 'unit_flow',
+    'id_equipo'
+]
 
+comando_mysql_inicio = f"INSERT INTO {table_name}\n("
+for dato in datos_mysql_thunder:
+    comando_mysql_inicio += dato + ","
+comando_mysql_inicio = comando_mysql_inicio[:-1] + ")\n"
 
-def main(page: Page):
-    def check_item_clicked(e):
-        e.control.checked = not e.control.checked
-        page.update()
+comando_mysql_final = f"VALUES\n"
+for i in range(0, len(df)):
+    comando_mysql_final = comando_mysql_final + "("
+    for dato in datos_mysql_thunder:
+        comando_mysql_final += f"'{df[dato].iloc[i]}'" + ","
+    comando_mysql_final = comando_mysql_final[:-1] + ""
+    comando_mysql_final += "),\n"
 
-    page.title = "AppBar Example"
-    page.theme_mode = "light"
-    page.theme = theme.Theme(color_scheme_seed=LIGHT_SEED_COLOR, use_material3=True)
-    page.dark_theme = theme.Theme(color_scheme_seed=DARK_SEED_COLOR, use_material3=True)
-    page.update()
+comando_mysql_final = comando_mysql_final[:-2] + ";"
 
-    def toggle_theme_mode(e):
-        page.theme_mode = "dark" if page.theme_mode == "light" else "light"
-        lightMode.icon = (
-            icons.WB_SUNNY_OUTLINED if page.theme_mode == "light" else icons.WB_SUNNY
-        )
-        page.update()
+comando = comando_mysql_inicio + comando_mysql_final
 
-    lightMode = IconButton(
-        icons.WB_SUNNY_OUTLINED if page.theme_mode == "light" else icons.WB_SUNNY,
-        on_click=toggle_theme_mode,
-    )
-
-    def toggle_material(e):
-        use_material3 = not page.theme.use_material3
-        page.theme = theme.Theme(
-            color_scheme_seed=LIGHT_SEED_COLOR, use_material3=use_material3
-        )
-        page.dark_theme = theme.Theme(
-            color_scheme_seed=DARK_SEED_COLOR, use_material3=use_material3
-        )
-        materialMode.icon = (
-            icons.FILTER_3 if page.theme.use_material3 else icons.FILTER_2
-        )
-        page.update()
-
-    materialMode = IconButton(
-        icons.FILTER_3 if page.theme.use_material3 else icons.FILTER_2,
-        on_click=toggle_material,
-    )
-
-    page.padding = 50
-    page.appbar = AppBar(
-        # toolbar_height=100,
-        # bgcolor=colors.SECONDARY_CONTAINER,
-        leading=Icon(icons.PALETTE),
-        leading_width=40,
-        title=Text("AppBar Example"),
-        center_title=False,
-        actions=[
-            lightMode,
-            materialMode,
-            PopupMenuButton(
-                items=[
-                    PopupMenuItem(text="Item 1"),
-                    PopupMenuItem(icon=icons.POWER_INPUT, text="Check power"),
-                    PopupMenuItem(
-                        content=Row(
-                            [
-                                Icon(icons.HOURGLASS_TOP_OUTLINED),
-                                Text("Item with a custom content"),
-                            ]
-                        ),
-                        on_click=lambda _: print(
-                            "Button with a custom content clicked!"
-                        ),
-                    ),
-                    PopupMenuItem(),  # divider
-                    PopupMenuItem(
-                        text="Checked item", checked=False, on_click=check_item_clicked
-                    ),
-                ]
-            ),
-        ],
-    )
-    page.add(Text("Body!"), ElevatedButton("Click me!"))
+print(comando)
 
 
-flet.app(target=main)
+

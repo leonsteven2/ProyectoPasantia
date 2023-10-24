@@ -41,6 +41,7 @@ from flet import (
 )
 import pymysql
 from time import sleep, strftime
+from datetime import datetime, timedelta
 import serial
 from pandas import DataFrame
 from xlwings import apps
@@ -342,13 +343,23 @@ class DeviceComunication(UserControl):
         self.setpoint_box = setpoint
         self.tiempo_muestreo = 2
 
+        # Variables de tiempo para bucles
+        self.minutos_actual = None
+        self.segundos_actual = None
 
         # Variables para exportar a excel en tiempo real
-        self.contador_excel = 0
+        self.contador_excel_HR = 0
+        self.contador_excel_temp = 0
         self.bool_exportar_excel = False
+        self.bool_HR_excel = False
+        self.bool_Temp_excel = False
         self.actual_row_excel = None
         self.actual_column_excel = None
         self.actual_sheet_excel = None
+
+        self.actual_row_excel_2 = None
+        self.actual_column_excel_2 = None
+        self.actual_sheet_excel_2 = None
         keyboard.hook(self.detect_keyboard_command)
 
         # Creamos la barra de progreso para la comunicación serial
@@ -902,81 +913,114 @@ class DeviceComunication(UserControl):
                 break
 
     def adquisicion_datos_473(self):
+        tiempo_futuro = datetime.now()
+        bool_aux = True
+
         while True:
-            sleep(self.tiempo_muestreo)
-            try:
-                mensaje = "RH?\r"
-                self.comunicacion_serial.write(mensaje.encode())
-                mensaje_desde_473 = self.comunicacion_serial.readline().decode()
-                try:
-                    self.txt_RH_473_actual.value = str(mensaje_desde_473).strip()
-                except:
-                    pass
+            if self.bool_registrar_datos or self.bool_HR_excel or self.bool_Temp_excel:
+                tiempo_actual = datetime.now()
 
-                mensaje = "DP?\r"
-                self.comunicacion_serial.write(mensaje.encode())
-                mensaje_desde_473 = self.comunicacion_serial.readline().decode()
-                try:
-                    self.txt_DewPoint_473_actual.value = str(mensaje_desde_473).strip()
-                except:
-                    pass
+                if self.bool_HR_excel and self.contador_excel_HR == 0 and not self.bool_Temp_excel:
+                    bool_aux = True
 
-                mensaje = "Tx?\r"
-                self.comunicacion_serial.write(mensaje.encode())
-                mensaje_desde_473 = self.comunicacion_serial.readline().decode()
-                try:
-                    self.txt_ExternalTemp_473_actual.value = str(mensaje_desde_473).strip()
-                except:
-                    pass
+                if self.bool_Temp_excel and self.contador_excel_temp == 0 and not self.bool_HR_excel:
+                    bool_aux = True
 
-                self.page.update(self)
+                if tiempo_futuro.strftime('%H:%M:%S') == tiempo_actual.strftime('%H:%M:%S') or bool_aux:
+                    tiempo_futuro = tiempo_actual + timedelta(seconds=int(self.tiempo_muestreo))
+                    bool_aux = False
 
-                # Guardamos en el dataframe si se presiono el boton registrar
-                try:
-                    if self.bool_registrar_datos:
-                        # Registro de datos en el dataframe
-                        hora = strftime("%H:%M:%S")
-                        fecha = strftime("20%y-%m-%d")
-                        self.dataframe_indice = self.df_datos_473.shape[0] + 1
-                        self.df_datos_473.loc[self.dataframe_indice] = [
-                            hora,
-                            fecha,
-                            self.txt_RH_473_actual.value,
-                            self.txt_DewPoint_473_actual.value,
-                            self.txt_ExternalTemp_473_actual.value
-                        ]
-                except:
-                    pass
+                    try:
+                        mensaje = "RH?\r"
+                        self.comunicacion_serial.write(mensaje.encode())
+                        mensaje_desde_473 = self.comunicacion_serial.readline().decode()
+                        try:
+                            self.txt_RH_473_actual.value = str(mensaje_desde_473).strip()
+                        except:
+                            pass
 
-                # Registro de datos en el Excel
-                try:
-                    if self.bool_exportar_excel:
-                        app = apps.active
-                        if app:
-                            if self.contador_excel == 0:
-                                self.actual_row_excel = app.selection.row
-                                self.actual_column_excel = app.selection.column
-                                self.actual_sheet_excel = app.selection.sheet
-                        self.actual_sheet_excel.range(self.actual_row_excel + self.contador_excel,
-                                                  self.actual_column_excel).value = self.txt_RH_473_actual.value
-                        # self.actual_sheet_excel.range(celda_activa.row + self.contador_excel,
-                        #                           celda_activa.column + 1).value = self.txt_DewPoint_473_actual.value
-                        # self.actual_sheet_excel.range(celda_activa.row + self.contador_excel,
-                        #                           celda_activa.column + 2).value = self.txt_ExternalTemp_473_actual.value
+                        mensaje = "DP?\r"
+                        self.comunicacion_serial.write(mensaje.encode())
+                        mensaje_desde_473 = self.comunicacion_serial.readline().decode()
+                        try:
+                            self.txt_DewPoint_473_actual.value = str(mensaje_desde_473).strip()
+                        except:
+                            pass
 
-                        self.contador_excel += 1
+                        mensaje = "Tx?\r"
+                        self.comunicacion_serial.write(mensaje.encode())
+                        mensaje_desde_473 = self.comunicacion_serial.readline().decode()
+                        try:
+                            self.txt_ExternalTemp_473_actual.value = str(mensaje_desde_473).strip()
+                        except:
+                            pass
 
-                except Exception as e:
-                    print(e)
+                        self.page.update(self)
+                        # Guardamos en el dataframe si se presiono el boton registrar
+                        try:
+                            if self.bool_registrar_datos:
+                                # Registro de datos en el dataframe
+                                hora = strftime("%H:%M:%S")
+                                fecha = strftime("20%y-%m-%d")
+                                self.dataframe_indice = self.df_datos_473.shape[0] + 1
+                                self.df_datos_473.loc[self.dataframe_indice] = [
+                                    hora,
+                                    fecha,
+                                    self.txt_RH_473_actual.value,
+                                    self.txt_DewPoint_473_actual.value,
+                                    self.txt_ExternalTemp_473_actual.value
+                                ]
+                        except:
+                            pass
 
-                # Se muestra el registro
-                self.txt_user_help.value = f"Registro: {self.dataframe_indice} - Excel: {self.contador_excel}"
-                self.txt_user_help.color = "green"
-                self.txt_user_help.update()
+                        # Registro de datos en el Excel
+                        try:
+                            # Envió de datos
+                            app = apps.active
+                            if app and self.bool_HR_excel:
+                                if self.contador_excel_HR == 0:
+                                    self.actual_row_excel = app.selection.row
+                                    self.actual_column_excel = app.selection.column
+                                    self.actual_sheet_excel = app.selection.sheet
+                                self.actual_sheet_excel.range(self.actual_row_excel + self.contador_excel_HR, self.actual_column_excel).value = self.txt_RH_473_actual.value
+                                self.contador_excel_HR += 1
+                                if self.contador_excel_HR == 5:
+                                    self.bool_HR_excel = False
+                                    self.contador_excel_HR = 0
 
-            except Exception as e:
-                self.conexion_serial_fallida(error=e)
-                break
+                            if app and self.bool_Temp_excel:
+                                if self.contador_excel_temp == 0:
+                                    self.actual_row_excel_2 = app.selection.row
+                                    self.actual_column_excel_2 = app.selection.column
+                                    self.actual_sheet_excel_2 = app.selection.sheet
+                                self.actual_sheet_excel_2.range(self.actual_row_excel_2 + self.contador_excel_temp, self.actual_column_excel_2).value = self.txt_ExternalTemp_473_actual.value
+                                self.contador_excel_temp += 1
+                                if self.contador_excel_temp == 5:
+                                    self.bool_Temp_excel = False
+                                    self.contador_excel_temp = 0
+
+                                # self.actual_sheet_excel.range(celda_activa.row + self.contador_excel,
+                                #                           celda_activa.column + 1).value = self.txt_DewPoint_473_actual.value
+                                # self.actual_sheet_excel.range(celda_activa.row + self.contador_excel,
+                                #                           celda_activa.column + 2).value = self.txt_ExternalTemp_473_actual.value
+
+
+                        except Exception as e:
+                            print(e)
+
+                        # Se muestra el registro
+                        self.txt_user_help.value = f"Registro: {self.dataframe_indice} - Excel (HR = {self.bool_HR_excel}) (Temp = {self.bool_Temp_excel})"
+                        self.txt_user_help.color = "green"
+                        self.txt_user_help.update()
+
+                    except Exception as e:
+                        self.conexion_serial_fallida(error=e)
+                        break
+
+
+            sleep(1)
+
+
 
     def adquisicion_datos_fluke(self):
         while True:
@@ -1057,7 +1101,8 @@ class DeviceComunication(UserControl):
         self.bool_registrar_datos = False
 
         self.bool_exportar_excel = False
-        self.contador_excel = 0
+        self.contador_excel_HR = 0
+        self.contador_excel_temp = 0
 
         self.page.update(self)
 
@@ -1143,10 +1188,21 @@ class DeviceComunication(UserControl):
             self.txt_user_help.color = "red"
 
     def detect_keyboard_command(self, e):
-        # print(e)
-        if e.event_type == keyboard.KEY_DOWN and keyboard.is_pressed('ctrl') and keyboard.is_pressed('mayusculas') and keyboard.is_pressed('A'):
-            self.bool_exportar_excel = True if self.bool_exportar_excel == False else False
-            self.contador_excel = 0 if self.bool_exportar_excel == False else self.contador_excel
+
+        if e.event_type == keyboard.KEY_DOWN and keyboard.is_pressed('ctrl') and keyboard.is_pressed('mayusculas') and keyboard.is_pressed('H'):
+            self.bool_HR_excel = True if self.bool_HR_excel == False else False
+            print(self.bool_HR_excel)
+            self.contador_excel_HR = 0 if self.bool_HR_excel == False else self.contador_excel_HR
+
+        if e.event_type == keyboard.KEY_DOWN and keyboard.is_pressed('ctrl') and keyboard.is_pressed('mayusculas') and keyboard.is_pressed('T'):
+            self.bool_Temp_excel = True if self.bool_Temp_excel == False else False
+            self.contador_excel_temp = 0 if self.bool_Temp_excel == False else self.contador_excel_temp
+
+
+
+
+
+
 
 
 class Settings(UserControl):
